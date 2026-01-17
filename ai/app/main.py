@@ -1,28 +1,6 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from app.api.v1.roadmap import router as roadmap_router
 
-app = FastAPI()
+app = FastAPI(title="AI Career Roadmap API")
 
-class CVRequest(BaseModel):
-    job_id: str
-    cv_text: str
-
-@app.post("/ai/roadmap")
-def generate_roadmap(data: CVRequest):
-    # later: call OpenAI / LLM here
-
-    roadmap = {
-        "career_goal": "Backend Engineer",
-        "steps": [
-            "Learn JavaScript deeply",
-            "Master Node.js & Express",
-            "Learn Databases",
-            "System Design Basics",
-            "Apply for Backend Roles"
-        ]
-    }
-
-    return {
-        "job_id": data.job_id,
-        "roadmap": roadmap
-    }
+app.include_router(roadmap_router)

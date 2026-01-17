@@ -210,3 +210,66 @@ export const uploadCv = asyncHandler(async (req, res) => {
     jobId: job._id,
   });
 });
+
+// user can create a new access token using refresh token and the previous refresh token will be rotated for security
+
+export const refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies?.refreshToken || req.body.refreshToken; // we will get the refresh token from the cookies but for testing purpose we can also get it from the body
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "No refresh token provided");
+  }
+
+  const decodedToken = jwt.verify(
+    incomingRefreshToken,
+    process.env.REFRESH_TOKEN_SECRET
+  );
+
+  const user = await User.findById(decodedToken?._id);
+
+  if (!user) {
+    throw new ApiError(401, "user not found");
+  }
+
+  // this is the IMPORTANT part what happening here is if the refresh token send through cookies
+  // or the body is not the same as in the database then it means the token is being compromised so we immediately
+  // clear all the cookies and the user is being logged out and has to login again to generate new refresh and access token
+
+  const isTokenValid = bcrypt.compare(incomingRefreshToken, user.refreshToken);
+
+  if (!isTokenValid) {
+    // (Server-side logout) by removing the refresh token from the database
+    user.refreshToken = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    // (Client-side logout) by clearning the cookies
+    const options = { httpOnly: true, secure: true };
+
+    return res
+      .status(403)
+      .clearCookie("accessToken", options)
+      .clearCookie("refreshToken", options)
+      .json(
+        new ApiResponse(
+          403,
+          null,
+          "Security Alert: Compromised token detected. All sessions cleared. Please login again."
+        )
+      );
+  }
+
+  const accessToken = user.generateAccessToken();
+  const newRefreshToken = user.generateRefreshToken();
+
+  // (REFRESH TOKEN ROTATION)
+  user.refreshToken = newRefreshToken;
+  await user.save({ validateBeforeSave: false });
+
+  const options = { httpOnly: true, secure: true };
+
+  return res
+    .status(200)
+    .cookie("refreshToken", newRefreshToken, options)
+    .json(new ApiResponse(200, { accessToken }, "Token rotated successfully"));
+});
