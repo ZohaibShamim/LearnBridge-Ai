@@ -7,6 +7,12 @@ import { hashPassword, decodePassword } from "../../utils/password.js";
 import { ApiResponse } from "../../utils/apiResponse.js";
 import { otpEmail } from "../../utils/emails.js";
 import jwt from "jsonwebtoken";
+import { Job } from "../../models/jobs.schema.js";
+import cvQueue from "../../queues/cv.queue.js";
+import { uploadCvOnCloudinary } from "../../utils/cloudinary.js";
+import bcrypt from "bcrypt";
+
+// register user
 
 export const registerUser = asyncHandler(async (req, res) => {
   const { email, password, firstName, lastName, degree, institute } = req.body;
@@ -85,6 +91,8 @@ export const registerUser = asyncHandler(async (req, res) => {
   }
 });
 
+// login user - step 1: verify email and password, send otp
+
 export const loginUserStep1 = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -129,4 +137,76 @@ export const loginUserStep1 = asyncHandler(async (req, res) => {
         "OTP sent. Please verify using the session token."
       )
     );
+});
+
+// verify the otp sent to email and login the user
+
+export const verifyOTPAndLogin = asyncHandler(async (req, res) => {
+  // session token which we have saved in the previous step to get the user
+
+  const { otp, sessionToken } = req.body;
+
+  if (!otp || !sessionToken) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "OTP and Session Token are required"));
+  }
+
+  const decodedToken = jwt.verify(
+    sessionToken,
+    process.env.ACCESS_TOKEN_SECRET
+  );
+
+  const user = await User.findById(decodedToken._id);
+
+  if (!user || user.otp !== otp || user.otp_expiry < Date.now()) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "Invalid or expired OTP"));
+  }
+
+  user.otp = undefined;
+  user.otp_expiry = undefined;
+
+  const accessToken = user.generateAccessToken();
+  const rawRefreshToken = user.generateRefreshToken();
+
+  user.refreshToken = await bcrypt.hash(rawRefreshToken, 10);
+  await user.save({ validateBeforeSave: false });
+
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+  };
+
+  return res
+    .status(200)
+    .cookie("refreshToken", rawRefreshToken, options)
+    .json(
+      new ApiResponse(200, { user, accessToken }, "User logged in successfully")
+    );
+});
+
+// upload cv and create a job for processing
+
+export const uploadCv = asyncHandler(async (req, res) => {
+  const localImagePath = req.file.path;
+  const uploadResult = await uploadCvOnCloudinary(localImagePath);
+
+  const cvUrl = uploadResult?.secure_url || uploadResult?.url || String(uploadResult);
+
+  const job = await Job.create({
+    userId: req.user._id,
+    cvUrl,
+  });
+
+  await cvQueue.add("process-cv", {
+    jobId: job._id.toString(),
+    cvUrl,
+  });
+
+  res.status(202).json({
+    message: "CV uploaded, processing started",
+    jobId: job._id,
+  });
 });
