@@ -11,6 +11,7 @@ import { Job } from "../../models/jobs.schema.js";
 import cvQueue from "../../queues/cv.queue.js";
 import { uploadCvOnCloudinary } from "../../utils/cloudinary.js";
 import bcrypt from "bcrypt";
+import fs from "fs";
 
 // register user
 
@@ -19,7 +20,7 @@ export const registerUser = asyncHandler(async (req, res) => {
 
   if (
     [email, password, firstName, lastName, degree, institute].some(
-      (field) => field?.trim() === ""
+      (field) => field?.trim() === "",
     )
   ) {
     throw new ApiError(400, "All fields are required");
@@ -46,7 +47,7 @@ export const registerUser = asyncHandler(async (req, res) => {
           status: "pending",
         },
       ],
-      { session }
+      { session },
     );
 
     const newUser = userArray[0];
@@ -60,7 +61,7 @@ export const registerUser = asyncHandler(async (req, res) => {
           education: [{ degree, institution: institute }],
         },
       ],
-      { session }
+      { session },
     );
 
     // if both models are created successfully then commit the transaction
@@ -74,8 +75,8 @@ export const registerUser = asyncHandler(async (req, res) => {
         new ApiResponse(
           201,
           { user: createdUser },
-          "User registered successfully"
-        )
+          "User registered successfully",
+        ),
       );
   } catch (error) {
     // if anything goes wrong do not save anything simply abort the session
@@ -84,7 +85,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     if (error instanceof ApiError) throw error;
     throw new ApiError(
       500,
-      error?.message || "Internal Server Error during registration"
+      error?.message || "Internal Server Error during registration",
     );
   } finally {
     session.endSession();
@@ -125,7 +126,7 @@ export const loginUserStep1 = asyncHandler(async (req, res) => {
   const sessionToken = jwt.sign(
     { _id: user._id },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: "10m" }
+    { expiresIn: "10m" },
   );
 
   return res
@@ -134,8 +135,8 @@ export const loginUserStep1 = asyncHandler(async (req, res) => {
       new ApiResponse(
         200,
         { sessionToken },
-        "OTP sent. Please verify using the session token."
-      )
+        "OTP sent. Please verify using the session token.",
+      ),
     );
 });
 
@@ -154,7 +155,7 @@ export const verifyOTPAndLogin = asyncHandler(async (req, res) => {
 
   const decodedToken = jwt.verify(
     sessionToken,
-    process.env.ACCESS_TOKEN_SECRET
+    process.env.ACCESS_TOKEN_SECRET,
   );
 
   const user = await User.findById(decodedToken._id);
@@ -183,7 +184,11 @@ export const verifyOTPAndLogin = asyncHandler(async (req, res) => {
     .status(200)
     .cookie("refreshToken", rawRefreshToken, options)
     .json(
-      new ApiResponse(200, { user, accessToken }, "User logged in successfully")
+      new ApiResponse(
+        200,
+        { user, accessToken },
+        "User logged in successfully",
+      ),
     );
 });
 
@@ -193,7 +198,9 @@ export const uploadCv = asyncHandler(async (req, res) => {
   const localImagePath = req.file.path;
   const uploadResult = await uploadCvOnCloudinary(localImagePath);
 
-  const cvUrl = uploadResult?.secure_url || uploadResult?.url || String(uploadResult);
+
+  const cvUrl =
+    uploadResult?.secure_url || uploadResult?.url || String(uploadResult);
 
   const job = await Job.create({
     userId: req.user._id,
@@ -223,7 +230,7 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
   const decodedToken = jwt.verify(
     incomingRefreshToken,
-    process.env.REFRESH_TOKEN_SECRET
+    process.env.REFRESH_TOKEN_SECRET,
   );
 
   const user = await User.findById(decodedToken?._id);
@@ -254,8 +261,8 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
         new ApiResponse(
           403,
           null,
-          "Security Alert: Compromised token detected. All sessions cleared. Please login again."
-        )
+          "Security Alert: Compromised token detected. All sessions cleared. Please login again.",
+        ),
       );
   }
 
