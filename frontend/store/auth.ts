@@ -22,6 +22,7 @@ interface AuthStore {
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
   clearAuth: () => void;
+  logout: () => void;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -35,6 +36,7 @@ export const useAuthStore = create<AuthStore>()(
       setUser: (user) => set({ user }),
       setLoading: (loading) => set({ isLoading: loading }),
       clearAuth: () => set({ user: null, isLoading: false }),
+      logout: () => set({ user: null, isLoading: false }),
     }),
     {
       name: 'auth-store', // localStorage key

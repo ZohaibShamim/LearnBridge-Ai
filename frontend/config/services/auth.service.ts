@@ -12,7 +12,7 @@ export interface RegisterData {
   password: string;
   firstName: string;
   lastName: string;
-  institution: string;
+  institute: string;
   degree: string;
 }
 
@@ -54,6 +54,14 @@ export interface VerifyOTPData {
 export interface VerifyOTPResponse {
   user: UserResponse;
   accessToken: string;
+  message: string;
+}
+
+export interface ResendOTPData {
+  sessionToken: string;
+}
+
+export interface ResendOTPResponse {
   message: string;
 }
 
@@ -100,3 +108,14 @@ export const verifyOTPAndLogin = async (
 
   return response.data;
 };
+
+export const resendOtp = async (
+  data: ResendOTPData
+): Promise<ApiResponse<ResendOTPResponse>> => {
+  const response = await api.post<ApiResponse<ResendOTPResponse>>(
+    '/users/resend-otp',
+    data
+  );
+  return response.data;
+};
+

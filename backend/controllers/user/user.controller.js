@@ -12,6 +12,7 @@ import cvQueue from "../../queues/cv.queue.js";
 import { uploadCvOnCloudinary } from "../../utils/cloudinary.js";
 import bcrypt from "bcrypt";
 import fs from "fs";
+import { otpEmailViaNodemailer } from "../../utils/nodemailer.js";
 
 // register user
 
@@ -120,7 +121,7 @@ export const loginUserStep1 = asyncHandler(async (req, res) => {
   user.otp_expiry = Date.now() + 3 * 60 * 1000; // 3 minutes
   await user.save({ validateBeforeSave: false });
 
-  await otpEmail(otp, user.email);
+  await otpEmailViaNodemailer(otp, user.email);
 
   // temporary session token for OTP verification
   const sessionToken = jwt.sign(
@@ -138,6 +139,45 @@ export const loginUserStep1 = asyncHandler(async (req, res) => {
         "OTP sent. Please verify using the session token.",
       ),
     );
+});
+
+// resend OTP to user's email
+
+export const resendOtp = asyncHandler(async (req, res) => {
+  const { sessionToken } = req.body;
+
+  if (!sessionToken) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "Session token is required"));
+  }
+
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(sessionToken, process.env.ACCESS_TOKEN_SECRET);
+  } catch (error) {
+    return res
+      .status(401)
+      .json(new ApiResponse(401, null, "Session expired. Please login again."));
+  }
+
+  const user = await User.findById(decodedToken._id);
+
+  if (!user) {
+    return res.status(404).json(new ApiResponse(404, null, "User not found"));
+  }
+
+  // Generate new OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  user.otp = otp;
+  user.otp_expiry = Date.now() + 3 * 60 * 1000; // 3 minutes
+  await user.save({ validateBeforeSave: false });
+
+  await otpEmailViaNodemailer(otp, user.email);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "OTP resent successfully"));
 });
 
 // verify the otp sent to email and login the user
@@ -212,10 +252,32 @@ export const uploadCv = asyncHandler(async (req, res) => {
     cvUrl,
   });
 
-  res.status(202).json({
-    message: "CV uploaded, processing started",
-    jobId: job._id,
-  });
+  res.status(202).json(
+    new ApiResponse(202, { jobId: job._id }, "CV uploaded, processing started")
+  );
+});
+
+// get job status by jobId
+
+export const getJobStatus = asyncHandler(async (req, res) => {
+  const { jobId } = req.params;
+
+  if (!jobId) {
+    return res.status(400).json(new ApiResponse(400, null, "Job ID is required"));
+  }
+
+  const job = await Job.findById(jobId);
+
+  if (!job) {
+    return res.status(404).json(new ApiResponse(404, null, "Job not found"));
+  }
+
+  // Verify the job belongs to the requesting user
+  if (job.userId.toString() !== req.user._id.toString()) {
+    return res.status(403).json(new ApiResponse(403, null, "Unauthorized access to this job"));
+  }
+
+  return res.status(200).json(new ApiResponse(200, job, "Job status retrieved"));
 });
 
 // user can create a new access token using refresh token and the previous refresh token will be rotated for security

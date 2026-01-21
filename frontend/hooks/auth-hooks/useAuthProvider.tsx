@@ -4,7 +4,9 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback 
 import axios from "axios";
 import { setAccessToken, getAccessToken, clearAuthData } from "@/config/token/token";
 import { useAuthStore } from "@/store/auth";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -16,8 +18,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const PUBLIC_ROUTES = ["/login", "/sign-up", "/forgot-password", "/reset-password"];
-const AUTH_ROUTES = ["/login", "/sign-up"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password"];
+const AUTH_ROUTES = ["/login", "/signup"];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -25,11 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { setUser, clearAuth } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+
+  // Check if current route is public
+  const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
+  const isAuthRoute = AUTH_ROUTES.some((route) => pathname?.startsWith(route));
 
   const checkAuth = useCallback(async (): Promise<boolean> => {
     console.log("[Auth] Checking authentication...");
 
+    // If we already have an access token in memory, we're authenticated
     if (getAccessToken()) {
       console.log("[Auth] Access token exists in memory");
       setIsAuthenticated(true);
@@ -37,11 +43,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     }
 
+    // On auth routes (login/signup), don't try to refresh - just mark as not authenticated
+    if (isAuthRoute) {
+      console.log("[Auth] On auth route, skipping refresh attempt");
+      setIsAuthenticated(false);
+      setIsLoading(false);
+      return false;
+    }
+
     console.log("[Auth] No access token, attempting refresh with cookie...");
 
     try {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1"}/users/refresh-token`,
+        `${API_BASE_URL}/users/refresh-token`,
         {},
         {
           withCredentials: true,
@@ -74,14 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return false;
     }
-  }, [setUser, clearAuth]);
+  }, [setUser, clearAuth, isAuthRoute]);
 
   // Redirect to the intended URL after login
   const redirectAfterLogin = useCallback(() => {
-    const redirectTo = searchParams?.get("redirect") || "/dashboard";
-    console.log("[Auth] Redirecting after login to:", redirectTo);
-    router.push(redirectTo);
-  }, [router, searchParams]);
+    console.log("[Auth] Redirecting after login to: /upload");
+    router.push("/upload");
+  }, [router]);
 
   const logout = useCallback(async () => {
     console.log("[Auth] Logging out...");
@@ -90,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = getAccessToken();
 
       await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1"}/users/logout`,
+        `${API_BASE_URL}/users/logout`,
         {},
         {
           withCredentials: true,
@@ -113,25 +126,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
+      // Skip auth check entirely on auth routes to prevent interference
+      if (isAuthRoute) {
+        console.log("[Auth] On auth route, allowing access without auth check");
+        setIsLoading(false);
+        return;
+      }
+
       const authenticated = await checkAuth();
 
-      const isAuthRoute = AUTH_ROUTES.some((route) => pathname?.startsWith(route));
-      const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
-
       if (authenticated && isAuthRoute) {
-        // Authenticated user on login/signup - redirect back
-        const redirectTo = searchParams?.get("redirect") || "/dashboard";
-        console.log("[Auth] Authenticated user on auth route, redirecting to:", redirectTo);
-        router.push(redirectTo);
+        // Authenticated user on login/signup - redirect to upload
+        console.log("[Auth] Authenticated user on auth route, redirecting to upload");
+        router.push("/upload");
       } else if (!authenticated && !isPublicRoute) {
-        // Unauthenticated user on protected route - save intended URL
-        console.log("[Auth] Unauthenticated, redirecting to login with redirect param");
-        router.push(`/login?redirect=${encodeURIComponent(pathname || "/dashboard")}`);
+        // Unauthenticated user on protected route
+        console.log("[Auth] Unauthenticated on protected route, redirecting to login");
+        router.push("/login");
       }
     };
 
     initAuth();
-  }, [checkAuth, pathname, router, searchParams]);
+  }, [checkAuth, pathname, router, isAuthRoute, isPublicRoute]);
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, isLoading, checkAuth, logout, redirectAfterLogin }}>
