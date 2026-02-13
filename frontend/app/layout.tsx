@@ -5,6 +5,7 @@ import { AuthProvider } from "@/hooks/auth-hooks/useAuthProvider";
 import { Providers } from "@/components/providers/query-provider";
 import { Suspense } from "react";
 
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
