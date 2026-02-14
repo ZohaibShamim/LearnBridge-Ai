@@ -14,4 +14,9 @@ const cvQueue = new Queue("cv-processing", {
   },
 });
 
+// Add event listeners for debugging
+cvQueue.on("worker-active", (job) => {
+  console.log("[Queue] Job added:", job.data);
+});
+
 export default cvQueue;

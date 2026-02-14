@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
 dotenv.config();
-// ...existing code...
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
 import axios from "axios";
@@ -26,7 +25,12 @@ async function init() {
   new Worker(
     "cv-processing",
     async (job) => {
-      const { jobId, cvUrl } = job.data;
+      // Destructure with default value for role
+      const { jobId, cvUrl, role = null } = job.data;
+
+      console.log("[Worker] Processing job with data:", JSON.stringify(job.data, null, 2));
+      console.log("[Worker] Role extracted from job:", role);
+      console.log("[Worker] Role type:", typeof role);
 
       if (!jobId) throw new Error("Missing jobId in job data");
 
@@ -37,12 +41,27 @@ async function init() {
 
         await Job.findByIdAndUpdate(jobId, { extractedText });
 
-        const payload = { job_id: jobId, cv_text: extractedText };
+        // Construct payload - MAKE SURE role is included
+        const payload = { 
+          job_id: jobId, 
+          cv_text: extractedText,
+          role: role  // This should work if role exists in job.data
+        };
 
+        console.log("[Worker] Payload being sent to Python:");
+        console.log(JSON.stringify(payload, null, 2));
+        console.log("[Worker] Payload keys:", Object.keys(payload));
+        console.log("[Worker] Payload.role value:", payload.role);
+        console.log("[Worker] Payload.role is undefined?", payload.role === undefined);
+        console.log("[Worker] Payload.role is null?", payload.role === null);
 
         let response;
         try {
-          response = await axiosClient.post("/ai/roadmap", payload);
+          response = await axiosClient.post("/ai/roadmap", payload, {
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
           console.log("AI API response data:", response.data);
         } catch (apiErr) {
           console.error("AI API call failed:", apiErr.message);
@@ -55,10 +74,10 @@ async function init() {
 
         await Job.findByIdAndUpdate(jobId, {
           roadmap: response.data?.roadmap || null,
+          tags: response.data?.tags || [],
           status: "completed",
         });
       } catch (err) {
-        // attempt to persist failure info, but don't let DB errors hide original error
         try {
           if (jobId) {
             await Job.findByIdAndUpdate(jobId, {
@@ -75,7 +94,6 @@ async function init() {
     { connection }
   );
 
-  // graceful shutdown
   const shutdown = async () => {
     try {
       await connection.disconnect();
@@ -94,4 +112,3 @@ init().catch((e) => {
   console.error("Worker init failed:", e);
   process.exit(1);
 });
-// ...existing code...

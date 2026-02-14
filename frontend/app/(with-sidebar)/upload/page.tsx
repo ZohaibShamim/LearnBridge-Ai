@@ -7,6 +7,103 @@ import { uploadCV } from "@/config/services/cv.service";
 import { useAuthStore } from "@/store/auth";
 import { clearAuthData } from "@/config/token/token";
 
+type RoleOption = "data_scientist" | "software_engineer" | "machine_learning" | "ai" | null;
+
+const roleOptions = [
+  { id: "data_scientist", label: "Data Scientist", color: "blue" },
+  { id: "software_engineer", label: "Software Engineer", color: "purple" },
+  { id: "machine_learning", label: "Machine Learning Engineer", color: "green" },
+  { id: "ai", label: "AI Engineer", color: "orange" },
+];
+
+// Role selection modal component
+function RoleSelectionModal({
+  isOpen,
+  selectedRole,
+  onSelectRole,
+  onClose,
+}: {
+  isOpen: boolean;
+  selectedRole: RoleOption;
+  onSelectRole: (role: RoleOption) => void;
+  onClose: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full animate-in fade-in zoom-in duration-300">
+        {/* Header */}
+        <div className="px-8 py-8 border-b border-slate-100">
+          <h2 className="text-3xl font-bold text-slate-900 mb-2">
+            Choose Your Role
+          </h2>
+          <p className="text-slate-600">
+            Select the career role you'd like to generate a roadmap for
+          </p>
+        </div>
+
+        {/* Options */}
+        <div className="px-8 py-8 space-y-3">
+          {roleOptions.map((role) => (
+            <button
+              key={role.id}
+              onClick={() => onSelectRole(role.id as RoleOption)}
+              className={`w-full p-4 rounded-xl text-left font-medium transition-all duration-200 border-2 flex items-center gap-3 ${
+                selectedRole === role.id
+                  ? `border-${role.color}-600 bg-${role.color}-50`
+                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                  selectedRole === role.id
+                    ? `border-${role.color}-600 bg-${role.color}-600`
+                    : "border-slate-300"
+                }`}
+              >
+                {selectedRole === role.id && (
+                  <svg
+                    className="w-4 h-4 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="3"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                )}
+              </div>
+              <span className="text-slate-900">{role.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="px-8 py-6 bg-slate-50 rounded-b-3xl flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onClose}
+            disabled={!selectedRole}
+            className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-medium rounded-xl transition-all"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UploadPage() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
@@ -15,9 +112,13 @@ export default function UploadPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [dragActive, setDragActive] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<RoleOption>(null);
+  const [showRoleModal, setShowRoleModal] = useState(true);
 
   const uploadMutation = useMutation({
-    mutationFn: uploadCV,
+    mutationFn: async ({ file, role }: { file: File; role: string }) => {
+      return uploadCV(file, role);
+    },
     onSuccess: (response) => {
       console.log("[Upload Success]", response);
       router.push(`/roadmap/${response.data.jobId}`);
@@ -87,9 +188,22 @@ export default function UploadPage() {
   };
 
   const handleUpload = () => {
-    if (!file) return;
+    if (!file || !selectedRole) {
+      if (!selectedRole) {
+        setError("Please select a role before uploading");
+      }
+      return;
+    }
     setError("");
-    uploadMutation.mutate(file);
+    uploadMutation.mutate({ file, role: selectedRole });
+  };
+
+  const handleSelectRole = (role: RoleOption) => {
+    setSelectedRole(role);
+  };
+
+  const handleCloseRoleModal = () => {
+      setShowRoleModal(false);
   };
 
   const handleRemove = () => {
@@ -109,7 +223,13 @@ export default function UploadPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Header */}
+      {/* Role Selection Modal */}
+      <RoleSelectionModal
+        isOpen={showRoleModal}
+        selectedRole={selectedRole}
+        onSelectRole={handleSelectRole}
+        onClose={handleCloseRoleModal}
+      />
       {/* <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -149,16 +269,64 @@ export default function UploadPage() {
           </p>
         </div>
 
+        {/* Role Selection Section */}
+        <div className="mb-10">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4 text-center">
+            {selectedRole
+              ? "Selected Role:"
+              : "Which role would you like to focus on?"}
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {roleOptions.map((role) => (
+              <button
+                key={role.id}
+                onClick={() => handleSelectRole(role.id as RoleOption)}
+                className={`p-4 rounded-xl font-medium transition-all duration-200 border-2 text-center ${
+                  selectedRole === role.id
+                    ? `border-${role.color}-600 bg-gradient-to-br from-${role.color}-50 to-${role.color}-100 text-${role.color}-900 shadow-lg shadow-${role.color}-500/20`
+                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                }`}
+              >
+                <div className="flex items-center gap-2 justify-center">
+                  {selectedRole === role.id && (
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                  <span className="text-sm">{role.label}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+          {!selectedRole && (
+            <p className="text-center text-red-600 text-sm mt-3">
+              ⚠️ Please select a role to continue
+            </p>
+          )}
+        </div>
+
         {/* Upload Card */}
         <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-8 border border-slate-100">
           {!file ? (
             <div
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
+              onDragEnter={!selectedRole ? undefined : handleDrag}
+              onDragLeave={!selectedRole ? undefined : handleDrag}
+              onDragOver={!selectedRole ? undefined : handleDrag}
+              onDrop={!selectedRole ? undefined : handleDrop}
               className={`border-2 border-dashed rounded-2xl p-16 text-center transition-all duration-200 ${
-                dragActive
+                !selectedRole
+                  ? "border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed"
+                  : dragActive
                   ? "border-blue-500 bg-blue-50 scale-[1.02]"
                   : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
               }`}
@@ -180,20 +348,33 @@ export default function UploadPage() {
                   </svg>
                 </div>
               </div>
-              <h3 className="text-xl font-semibold text-slate-900 mb-2">
-                Drop your CV here
-              </h3>
-              <p className="text-slate-500 mb-6">or click to browse from your device</p>
+              {!selectedRole ? (
+                <>
+                  <h3 className="text-xl font-semibold text-slate-600 mb-2">
+                    Select a role first
+                  </h3>
+                  <p className="text-slate-500 mb-6">Choose a career role above to enable file upload</p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                    Drop your CV here
+                  </h3>
+                  <p className="text-slate-500 mb-6">or click to browse from your device</p>
+                </>
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/jpg,image/png,application/pdf"
                 onChange={handleFileChange}
+                disabled={!selectedRole}
                 className="hidden"
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 rounded-xl font-medium transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+                disabled={!selectedRole}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3 rounded-xl font-medium transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Choose File
               </button>
@@ -268,7 +449,7 @@ export default function UploadPage() {
               {/* Upload Button */}
               <button
                 onClick={handleUpload}
-                disabled={uploadMutation.isPending}
+                disabled={uploadMutation.isPending || !selectedRole}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-4 rounded-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
               >
                 {uploadMutation.isPending ? (
@@ -278,6 +459,23 @@ export default function UploadPage() {
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     Uploading CV...
+                  </span>
+                ) : !selectedRole ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                    Select a Role First
                   </span>
                 ) : (
                   <span className="flex items-center justify-center gap-2">

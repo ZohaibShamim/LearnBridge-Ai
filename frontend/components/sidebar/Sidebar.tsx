@@ -40,7 +40,7 @@ export default function Sidebar() {
     {
       label: "My Roadmaps",
       icon: <Map className="h-6 w-6 flex-shrink-0" />,
-      href: "/my-roadmaps",
+      href: "/roadmaps",
     },
     {
       label: "Quizzes",

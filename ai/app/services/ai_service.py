@@ -8,12 +8,22 @@ from app.core.config import (
 )
 from app.utils.prompt import roadmap_prompt
 
-def generate_roadmap_from_cv(cv_text: str) -> str:
+def generate_roadmap_from_cv(cv_text: str, role: str = None) -> str:
     """
     Generate a career roadmap from CV text using the configured AI provider.
     Supports multiple providers: HuggingFace (free), Groq, OpenAI
+    
+    Args:
+        cv_text: The extracted text from the user's CV
+        role: The target career role (e.g., 'data_scientist', 'software_engineer', 'machine_learning', 'ai')
     """
-    prompt = roadmap_prompt(cv_text)
+    # Add logging to verify role is received
+    print(f"[DEBUG] Role received: {role}")
+    print(f"[DEBUG] Role type: {type(role)}")
+    
+    prompt = roadmap_prompt(cv_text, role)
+    
+    print(f"[DEBUG] Generated prompt includes role: {role in prompt if role else 'No role'}")
     
     if AI_PROVIDER == "huggingface":
         return _call_huggingface(prompt)

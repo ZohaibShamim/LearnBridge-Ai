@@ -42,12 +42,28 @@ export interface JobStatus {
   userId: string;
   status: "uploaded" | "processing" | "completed" | "failed";
   cvUrl: string;
+  role?: string;  // Role selected by user (e.g., "data_scientist", "software_engineer")
   extractedText?: string;
   roadmap?: Roadmap;
+  tags?: string[];  // AI-generated tags from roadmap skills
   error?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+// Helper function to convert role format from snake_case to Title Case
+export const convertRoleToTitle = (role?: string): string => {
+  if (!role) return "Career Roadmap";
+  
+  const roleMap: Record<string, string> = {
+    "data_scientist": "Data Science",
+    "software_engineer": "Software Engineering",
+    "machine_learning": "Machine Learning Engineering",
+    "ai": "AI Engineering",
+  };
+  
+  return roleMap[role] || role.replace(/_/g, " ").split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+};
 
 export interface ApiResponse<T> {
   statusCode: number;
@@ -89,9 +105,10 @@ export const normalizeResources = (resources: Resource[] | StepResources | undef
 
 // Methods
 
-export const uploadCV = async (file: File): Promise<ApiResponse<UploadCVResponse>> => {
+export const uploadCV = async (file: File, role: string): Promise<ApiResponse<UploadCVResponse>> => {
   const formData = new FormData();
   formData.append("cv", file);
+  formData.append("role", role);
 
   const response = await api.post<ApiResponse<UploadCVResponse>>(
     "/users/upload-cv",

@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { getJobStatus, JobStatus, RoadmapStep, Resource, normalizeResources } from "@/config/services/cv.service";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getJobStatus, JobStatus, RoadmapStep, Resource, normalizeResources, convertRoleToTitle } from "@/config/services/cv.service";
+import { saveRoadmap } from "@/config/services/roadmap.service";
 import { useAuthStore } from "@/store/auth";
 import { clearAuthData } from "@/config/token/token";
 
@@ -332,13 +333,53 @@ function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; i
 // Main roadmap display
 function RoadmapDisplay({ job }: { job: JobStatus }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, logout } = useAuthStore();
   const roadmap = job.roadmap;
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const handleLogout = () => {
     clearAuthData();
     logout();
     router.push("/login");
+  };
+
+  const handleSaveRoadmap = async () => {
+    if (!roadmap) return;
+
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const jobTitle = convertRoleToTitle(job.role);
+      
+      await saveRoadmap({
+        jobTitle: jobTitle,
+        roadmap: roadmap,
+        description: `AI-generated roadmap for ${roadmap.career_goal}`,
+        tags: job.tags || [],
+      });
+
+      setSaveMessage({
+        type: "success",
+        text: "Roadmap saved successfully!",
+      });
+
+      // Invalidate roadmaps query to show the new roadmap in real-time
+      await queryClient.invalidateQueries({ queryKey: ["roadmaps"] });
+
+      // Clear message after 3 seconds
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (error) {
+      console.error("Failed to save roadmap:", error);
+      setSaveMessage({
+        type: "error",
+        text: "Failed to save roadmap. Please try again.",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!roadmap) {
@@ -384,20 +425,81 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 py-8">
+        {/* Save Message Notification */}
+        {saveMessage && (
+          <div
+            className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
+              saveMessage.type === "success"
+                ? "bg-green-50 border border-green-200 text-green-800"
+                : "bg-red-50 border border-red-200 text-red-800"
+            }`}
+          >
+            {saveMessage.type === "success" ? (
+              <svg
+                className="w-5 h-5 flex-shrink-0"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="w-5 h-5 flex-shrink-0"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+            <span className="font-medium">{saveMessage.text}</span>
+          </div>
+        )}
+
         {/* Hero Section */}
         <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl p-8 md:p-12 text-white mb-8 shadow-xl shadow-blue-500/20">
-          <div className="flex items-start gap-4 mb-6">
-            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center flex-shrink-0">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-              </svg>
+          <div className="flex items-start justify-between gap-4 mb-6">
+            <div className="flex items-start gap-4 flex-1">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-blue-100 text-sm font-medium mb-1">Your Career Goal</p>
+                <h1 className="text-2xl md:text-3xl font-bold">
+                  {roadmap.career_goal}
+                </h1>
+              </div>
             </div>
-            <div>
-              <p className="text-blue-100 text-sm font-medium mb-1">Your Career Goal</p>
-              <h1 className="text-2xl md:text-3xl font-bold">
-                {roadmap.career_goal}
-              </h1>
-            </div>
+            <button
+              onClick={handleSaveRoadmap}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white rounded-xl transition-all font-medium text-sm flex-shrink-0"
+            >
+              {isSaving ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                  Save Roadmap
+                </>
+              )}
+            </button>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -449,12 +551,20 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
           <p className="text-slate-600 mb-4">
             Begin with the first step and track your progress as you go.
           </p>
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-500/25"
-          >
-            Start Learning Now
-          </button>
+          <div className="flex gap-3 justify-center flex-wrap">
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-500/25"
+            >
+              Start Learning Now
+            </button>
+            <button
+              onClick={() => router.push("/roadmaps")}
+              className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all"
+            >
+              View All Roadmaps
+            </button>
+          </div>
         </div>
       </main>
     </div>

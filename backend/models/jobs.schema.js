@@ -18,6 +18,15 @@ const jobSchema = new mongoose.Schema({
     required: true,
   },
 
+  role: {
+    type: String,
+    enum: ["data_scientist", "software_engineer", "machine_learning", "ai"],
+  },
+
+  tags: [{
+    type: String,
+  }],
+
   extractedText: {
     type: String,
   },

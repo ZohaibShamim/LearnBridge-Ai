@@ -235,9 +235,21 @@ export const verifyOTPAndLogin = asyncHandler(async (req, res) => {
 // upload cv and create a job for processing
 
 export const uploadCv = asyncHandler(async (req, res) => {
+  const { role } = req.body;
   const localImagePath = req.file.path;
-  const uploadResult = await uploadCvOnCloudinary(localImagePath);
 
+  // Validate role is provided and is a string
+  if (!role || typeof role !== "string") {
+    throw new ApiError(
+      400,
+      "Valid role field is required and must be a string",
+    );
+  }
+
+  console.log("[uploadCv] Role from request body:", role);
+  console.log("[uploadCv] Full request body:", req.body);
+
+  const uploadResult = await uploadCvOnCloudinary(localImagePath);
 
   const cvUrl =
     uploadResult?.secure_url || uploadResult?.url || String(uploadResult);
@@ -245,16 +257,25 @@ export const uploadCv = asyncHandler(async (req, res) => {
   const job = await Job.create({
     userId: req.user._id,
     cvUrl,
+    role,
   });
 
-  await cvQueue.add("process-cv", {
+  await cvQueue.add("cv-processing", {
     jobId: job._id.toString(),
     cvUrl,
+    role: role,
   });
 
-  res.status(202).json(
-    new ApiResponse(202, { jobId: job._id }, "CV uploaded, processing started")
-  );
+  console.log("[uploadCv] Job queued with role:", role);
+  res
+    .status(202)
+    .json(
+      new ApiResponse(
+        202,
+        { jobId: job._id },
+        "CV uploaded, processing started",
+      ),
+    );
 });
 
 // get job status by jobId
@@ -263,7 +284,9 @@ export const getJobStatus = asyncHandler(async (req, res) => {
   const { jobId } = req.params;
 
   if (!jobId) {
-    return res.status(400).json(new ApiResponse(400, null, "Job ID is required"));
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "Job ID is required"));
   }
 
   const job = await Job.findById(jobId);
@@ -274,10 +297,14 @@ export const getJobStatus = asyncHandler(async (req, res) => {
 
   // Verify the job belongs to the requesting user
   if (job.userId.toString() !== req.user._id.toString()) {
-    return res.status(403).json(new ApiResponse(403, null, "Unauthorized access to this job"));
+    return res
+      .status(403)
+      .json(new ApiResponse(403, null, "Unauthorized access to this job"));
   }
 
-  return res.status(200).json(new ApiResponse(200, job, "Job status retrieved"));
+  return res
+    .status(200)
+    .json(new ApiResponse(200, job, "Job status retrieved"));
 });
 
 // user can create a new access token using refresh token and the previous refresh token will be rotated for security
