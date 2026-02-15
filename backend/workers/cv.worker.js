@@ -7,11 +7,22 @@ import mongoose from "mongoose";
 import { Job } from "../models/jobs.schema.js";
 import { extractTextFromCV } from "../utils/ocr.js";
 
-const redisOptions = process.env.REDIS_URL
-  ? process.env.REDIS_URL
-  : { host: "127.0.0.1", port: 6379, maxRetriesPerRequest: null };
+let connection;
 
-const connection = new IORedis(redisOptions);
+if (process.env.REDIS_URL) {
+  console.log("Using Redis URL from environment variable");
+  connection = new IORedis(process.env.REDIS_URL, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+} else {
+  console.log("No Redis URL provided, connecting to local Redis");
+  connection = new IORedis({
+    host: "127.0.0.1",
+    port: 6379,
+    maxRetriesPerRequest: null,
+  });
+}
 
 const axiosClient = axios.create({
   baseURL: process.env.FASTAPI_URL,

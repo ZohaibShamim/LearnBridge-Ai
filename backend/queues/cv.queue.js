@@ -1,7 +1,23 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
+import dotenv from "dotenv";
 
-const connection = new IORedis();
+dotenv.config();
+
+let connection;
+
+if (process.env.REDIS_URL) {
+  connection = new IORedis(process.env.REDIS_URL, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+} else {
+  connection = new IORedis({
+    host: "127.0.0.1",
+    port: 6379,
+    maxRetriesPerRequest: null,
+  });
+}
 
 const cvQueue = new Queue("cv-processing", {
   connection,
