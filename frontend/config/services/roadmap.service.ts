@@ -9,8 +9,17 @@ export interface SavedRoadmap {
   description?: string;
   isActive: boolean;
   tags?: string[];
+  completedSteps?: number[]; // 0-based indices of completed steps
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProgressUpdate {
+  _id: string;
+  completedSteps: number[];
+  totalSteps: number;
+  completedCount: number;
+  percentage: number;
 }
 
 export interface SaveRoadmapPayload {
@@ -49,6 +58,18 @@ export const deleteRoadmap = async (
 ): Promise<ApiResponse<null>> => {
   const response = await api.delete<ApiResponse<null>>(
     `/roadmaps/${roadmapId}`
+  );
+  return response.data;
+};
+
+export const updateRoadmapProgress = async (
+  roadmapId: string,
+  stepIndex: number,
+  completed: boolean
+): Promise<ApiResponse<ProgressUpdate>> => {
+  const response = await api.patch<ApiResponse<ProgressUpdate>>(
+    `/roadmaps/${roadmapId}/progress`,
+    { stepIndex, completed }
   );
   return response.data;
 };
