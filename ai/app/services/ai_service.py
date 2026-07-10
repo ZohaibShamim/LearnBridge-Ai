@@ -8,6 +8,27 @@ from app.core.config import (
 )
 from app.utils.prompt import roadmap_prompt
 
+# Default system prompt used by the roadmap flow. Kept as the parameter default so the
+# existing roadmap path is unchanged; the quiz flow passes its own system prompt.
+DEFAULT_SYSTEM_PROMPT = "You are a professional career advisor that generates structured JSON responses."
+
+
+def call_ai(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
+    """
+    Generic entry point: send a prompt (with an optional system prompt) to the configured
+    provider and return the raw text. Reused by both roadmap and quiz generation so there is
+    one provider-dispatch path, not two.
+    """
+    if AI_PROVIDER == "huggingface":
+        return _call_huggingface(prompt, system_prompt)
+    elif AI_PROVIDER == "groq":
+        return _call_groq(prompt, system_prompt)
+    elif AI_PROVIDER == "openai":
+        return _call_openai(prompt, system_prompt)
+    else:
+        raise ValueError(f"Unsupported AI provider: {AI_PROVIDER}")
+
+
 def generate_roadmap_from_cv(cv_text: str, role: str = None) -> str:
     """
     Generate a career roadmap from CV text using the configured AI provider.
@@ -34,20 +55,20 @@ def generate_roadmap_from_cv(cv_text: str, role: str = None) -> str:
     else:
         raise ValueError(f"Unsupported AI provider: {AI_PROVIDER}")
 
-def _call_huggingface(prompt: str) -> str:
+def _call_huggingface(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
     """
     Call Hugging Face Inference API (Free)
     """
     if not HUGGINGFACE_API_KEY:
         raise ValueError("HUGGINGFACE_API_KEY not set in environment variables")
-    
+
     headers = {
         "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
         "Content-Type": "application/json"
     }
-    
+
     # Format prompt for instruction-tuned models (Zephyr format)
-    formatted_prompt = f"<|system|>\nYou are a helpful AI assistant.</s>\n<|user|>\n{prompt}</s>\n<|assistant|>\n"
+    formatted_prompt = f"<|system|>\n{system_prompt}</s>\n<|user|>\n{prompt}</s>\n<|assistant|>\n"
     
     payload = {
         "inputs": formatted_prompt,
@@ -95,24 +116,24 @@ def _call_huggingface(prompt: str) -> str:
     else:
         return str(result)
 
-def _call_groq(prompt: str) -> str:
+def _call_groq(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
     """
     Call Groq API (Fast and Free)
     """
     if not GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY not set in environment variables. Get one free at https://console.groq.com/keys")
-    
+
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-    
+
     payload = {
         "model": GROQ_MODEL,
         "messages": [
             {
                 "role": "system",
-                "content": "You are a professional career advisor that generates structured JSON responses."
+                "content": system_prompt
             },
             {
                 "role": "user",
@@ -140,7 +161,7 @@ def _call_groq(prompt: str) -> str:
     
     return response.json()["choices"][0]["message"]["content"]
 
-def _call_openai(prompt: str) -> str:
+def _call_openai(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
     """
     Call OpenAI API
     """
@@ -148,10 +169,14 @@ def _call_openai(prompt: str) -> str:
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json"
     }
-    
+
     payload = {
         "model": OPENAI_MODEL,
         "messages": [
+            {
+                "role": "system",
+                "content": system_prompt
+            },
             {
                 "role": "user",
                 "content": prompt
