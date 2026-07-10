@@ -53,6 +53,14 @@ const roadmapSchema = new mongoose.Schema({
     default: true,
   },
 
+  // 0-based indices of steps the user has marked complete. Progress % is derived from
+  // completedSteps.length / roadmap.steps.length (see progress controller / dashboard).
+  completedSteps: [
+    {
+      type: Number,
+    },
+  ],
+
   tags: [
     {
       type: String,
