@@ -1,62 +1,98 @@
 import api from "../instance/api";
+import { ApiResponse } from "./cv.service";
 
-// Interfaces
+// Contract matches the backend exactly. Selections and the answer key are INDEX-based
+// (0..3); the client never receives correctIndex/explanation until after submitting.
 
-export interface QuizQuestion {
-  _id: string;
+export type Difficulty = "easy" | "medium" | "hard";
+export type QuizDifficulty = Difficulty | "mixed";
+
+// A question as sent to the client for taking — NO correct answer.
+export interface SafeQuizQuestion {
   question: string;
   options: string[];
-  correctAnswer: number;
-  explanation?: string;
-  difficulty?: "easy" | "medium" | "hard";
+  difficulty?: Difficulty;
 }
 
 export interface Quiz {
   _id: string;
+  userId: string;
+  roadmapId?: string;
   title: string;
-  description: string;
-  category: string;
-  difficulty: "easy" | "medium" | "hard";
+  description?: string;
+  category?: string;
+  topic: string;
+  difficulty: QuizDifficulty;
+  estimatedTime: number; // minutes
   totalQuestions: number;
-  estimatedTime: number; // in minutes
-  thumbnail?: string;
-  questions: QuizQuestion[];
+  questions: SafeQuizQuestion[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface QuizAttempt {
-  _id: string;
-  userId: string;
-  quizId: string;
-  startedAt: string;
-  completedAt?: string;
-  answers: Array<{
-    questionId: string;
-    selectedAnswer: number;
-    isCorrect: boolean;
-  }>;
-  score: number;
-  totalQuestions: number;
-  timeSpent: number; // in seconds
+export interface GenerateQuizPayload {
+  topic: string;
+  difficulty?: QuizDifficulty;
+  numQuestions?: number;
+  roadmapId?: string;
+  title?: string;
+  category?: string;
 }
 
-export interface QuizResult {
-  quiz: Quiz;
-  attempt: QuizAttempt;
+export interface SubmitResult {
+  attemptId: string;
+  score: number;
+  total: number;
   percentage: number;
   grade: string;
-  feedback: string;
 }
 
-export interface ApiResponse<T> {
-  statusCode: number;
-  data: T;
-  message: string;
-  success: boolean;
+// A question in the results review — includes the correct answer + explanation.
+export interface ReviewQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation?: string;
+  difficulty?: Difficulty;
 }
 
-// Methods
+export interface AttemptAnswer {
+  questionIndex: number;
+  selectedIndex: number; // -1 = unanswered
+  isCorrect: boolean;
+}
+
+export interface AttemptResult {
+  _id: string;
+  quizId: string;
+  userId: string;
+  answers: AttemptAnswer[];
+  score: number;
+  total: number;
+  percentage: number;
+  grade: string;
+  timeSpent: number;
+  feedback?: string;
+  createdAt: string;
+  quiz: {
+    _id: string;
+    title: string;
+    topic: string;
+    difficulty: QuizDifficulty;
+    estimatedTime: number;
+    totalQuestions: number;
+    questions: ReviewQuestion[];
+  };
+}
+
+// --- methods -------------------------------------------------------------
+
+export const generateQuiz = async (
+  payload: GenerateQuizPayload
+): Promise<ApiResponse<Quiz>> => {
+  const response = await api.post<ApiResponse<Quiz>>("/quizzes/generate", payload);
+  return response.data;
+};
 
 export const getAllQuizzes = async (): Promise<ApiResponse<Quiz[]>> => {
   const response = await api.get<ApiResponse<Quiz[]>>("/quizzes");
@@ -68,33 +104,23 @@ export const getQuizById = async (quizId: string): Promise<ApiResponse<Quiz>> =>
   return response.data;
 };
 
-export const startQuizAttempt = async (quizId: string): Promise<ApiResponse<QuizAttempt>> => {
-  const response = await api.post<ApiResponse<QuizAttempt>>(`/quizzes/${quizId}/attempt`, {});
-  return response.data;
-};
-
-export const submitQuizAnswer = async (
-  attemptId: string,
-  questionId: string,
-  selectedAnswer: number
-): Promise<ApiResponse<QuizAttempt>> => {
-  const response = await api.post<ApiResponse<QuizAttempt>>(
-    `/quizzes/attempt/${attemptId}/answer`,
-    { questionId, selectedAnswer }
+export const submitQuiz = async (
+  quizId: string,
+  answers: number[],
+  timeSpent: number
+): Promise<ApiResponse<SubmitResult>> => {
+  const response = await api.post<ApiResponse<SubmitResult>>(
+    `/quizzes/${quizId}/submit`,
+    { answers, timeSpent }
   );
   return response.data;
 };
 
-export const completeQuizAttempt = async (attemptId: string): Promise<ApiResponse<QuizResult>> => {
-  const response = await api.post<ApiResponse<QuizResult>>(
-    `/quizzes/attempt/${attemptId}/complete`,
-    {}
+export const getAttempt = async (
+  attemptId: string
+): Promise<ApiResponse<AttemptResult>> => {
+  const response = await api.get<ApiResponse<AttemptResult>>(
+    `/quizzes/attempt/${attemptId}`
   );
-  return response.data;
-};
-
-export const getUserQuizAttempts = async (quizId?: string): Promise<ApiResponse<QuizAttempt[]>> => {
-  const url = quizId ? `/quizzes/attempts?quizId=${quizId}` : `/quizzes/attempts`;
-  const response = await api.get<ApiResponse<QuizAttempt[]>>(url);
   return response.data;
 };
