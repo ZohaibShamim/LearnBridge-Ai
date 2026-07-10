@@ -2,72 +2,33 @@
 
 import { useSearchParams, useRouter, useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { getQuizById, Quiz } from "@/config/services/quiz.service";
-import axios from "axios";
-
-interface QuizResult {
-  _id: string;
-  quizId: string;
-  userId: string;
-  attempt: {
-    answers: Array<{
-      questionId: string;
-      selectedAnswer: string;
-      isCorrect: boolean;
-    }>;
-    score: number;
-    timeSpent: number;
-  };
-  percentage: number;
-  grade: string;
-  feedback: string;
-  createdAt: string;
-}
+import { getAttempt } from "@/config/services/quiz.service";
 
 function GradeIndicator({ grade, percentage }: { grade: string; percentage: number }) {
-  const getGradeColor = (g: string) => {
-    switch (g) {
-      case "A":
-        return { bg: "from-green-500 to-emerald-600", text: "text-white" };
-      case "B":
-        return { bg: "from-blue-500 to-indigo-600", text: "text-white" };
-      case "C":
-        return { bg: "from-yellow-500 to-orange-600", text: "text-white" };
-      case "D":
-        return { bg: "from-orange-500 to-red-600", text: "text-white" };
-      default:
-        return { bg: "from-red-500 to-red-600", text: "text-white" };
-    }
+  // Literal-class map per grade (DESIGN.md grade mapping: A green, B blue, C yellow, D orange, F red).
+  const gradeColors: Record<string, string> = {
+    A: "from-green-500 to-emerald-600",
+    B: "from-blue-500 to-indigo-600",
+    C: "from-yellow-500 to-orange-600",
+    D: "from-orange-500 to-red-600",
+    F: "from-red-500 to-red-600",
   };
+  const bg = gradeColors[grade] || gradeColors.F;
 
-  const colors = getGradeColor(grade);
+  const message =
+    grade === "A" ? "Outstanding! Excellent performance"
+    : grade === "B" ? "Great job! Very good understanding"
+    : grade === "C" ? "Good effort! Room for improvement"
+    : grade === "D" ? "Keep practicing to improve"
+    : "Try again to strengthen your knowledge";
 
   return (
-    <div className={`bg-gradient-to-br ${colors.bg} rounded-3xl p-12 text-center ${colors.text}`}>
+    <div className={`bg-gradient-to-br ${bg} rounded-3xl p-12 text-center text-white`}>
       <div className="text-6xl font-bold mb-4">{grade}</div>
       <div className="text-2xl font-semibold mb-2">{percentage.toFixed(1)}%</div>
-      <p className="text-white/80 text-lg">
-        {grade === "A"
-          ? "Outstanding! Excellent performance"
-          : grade === "B"
-          ? "Great job! Very good understanding"
-          : grade === "C"
-          ? "Good effort! Room for improvement"
-          : grade === "D"
-          ? "Keep practicing to improve"
-          : "Try again to strengthen your knowledge"}
-      </p>
+      <p className="text-white/80 text-lg">{message}</p>
     </div>
   );
-}
-
-interface AnswerReview {
-  questionId: string;
-  question: string;
-  selectedAnswer: string;
-  correctAnswer: string;
-  isCorrect: boolean;
-  explanation: string;
 }
 
 export default function QuizResultsPage() {
@@ -77,27 +38,15 @@ export default function QuizResultsPage() {
   const quizId = params.quizId as string;
   const attemptId = searchParams.get("attemptId");
 
-  // Fetch quiz details
-  const { data: quizData, isLoading: isQuizLoading } = useQuery({
-    queryKey: ["quiz", quizId],
-    queryFn: () => getQuizById(quizId),
-    enabled: !!quizId,
-  });
-
-  // Fetch result details
-  const { data: resultData, isLoading: isResultLoading } = useQuery({
-    queryKey: ["quizResult", attemptId],
-    queryFn: async () => {
-      const response = await axios.get(`/api/v1/quizzes/attempt/${attemptId}`);
-      return response.data;
-    },
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["quizAttempt", attemptId],
+    queryFn: () => getAttempt(attemptId as string),
     enabled: !!attemptId,
   });
 
-  const quiz = quizData?.data as Quiz;
-  const result = resultData?.data as QuizResult;
+  const result = data?.data;
 
-  if (isQuizLoading || isResultLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
@@ -108,7 +57,7 @@ export default function QuizResultsPage() {
     );
   }
 
-  if (!quiz || !result) {
+  if (isError || !result) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
@@ -124,37 +73,33 @@ export default function QuizResultsPage() {
     );
   }
 
-  const timeSpent = result.attempt.timeSpent;
-  const totalQuestions = quiz.totalQuestions;
-  const correctAnswers = result.attempt.answers.filter((a) => a.isCorrect).length;
+  const quiz = result.quiz;
+  const timeSpent = result.timeSpent;
+  const totalQuestions = result.total;
+  const correctAnswers = result.score;
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}m ${secs}s`;
   };
 
-  // Calculate difficulty distribution
+  // Difficulty breakdown from the quiz questions + which were correct.
   const difficultyStats = quiz.questions.reduce(
     (acc, q, idx) => {
-      const answer = result.attempt.answers[idx];
-      if (q.difficulty === "easy") {
-        if (answer?.isCorrect) acc.easy.correct++;
-        acc.easy.total++;
-      } else if (q.difficulty === "medium") {
-        if (answer?.isCorrect) acc.medium.correct++;
-        acc.medium.total++;
-      } else {
-        if (answer?.isCorrect) acc.hard.correct++;
-        acc.hard.total++;
-      }
+      const answer = result.answers[idx];
+      const bucket = q.difficulty === "easy" ? acc.easy : q.difficulty === "hard" ? acc.hard : acc.medium;
+      if (answer?.isCorrect) bucket.correct++;
+      bucket.total++;
       return acc;
     },
     { easy: { correct: 0, total: 0 }, medium: { correct: 0, total: 0 }, hard: { correct: 0, total: 0 } }
   );
 
+  const pct = (c: number, t: number) => (t > 0 ? (c / t) * 100 : 0);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
-      {/* Header */}
       <div className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md z-40 border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <h2 className="font-semibold text-slate-900">Quiz Results</h2>
@@ -168,18 +113,15 @@ export default function QuizResultsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto mt-20 mb-12">
-        {/* Main Result Card */}
+        {/* Main result card */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8">
-          {/* Quiz Title */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-900 mb-2">{quiz.title}</h1>
             <p className="text-slate-600">Quiz completed successfully</p>
           </div>
 
-          {/* Grade Card */}
           <GradeIndicator grade={result.grade} percentage={result.percentage} />
 
-          {/* Score Details */}
           <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
               <div className="flex items-center gap-3 mb-3">
@@ -200,7 +142,7 @@ export default function QuizResultsPage() {
                 <span className="font-semibold text-purple-900">Time Spent</span>
               </div>
               <p className="text-3xl font-bold text-purple-600">{formatTime(timeSpent)}</p>
-              <p className="text-sm text-purple-700 mt-1">estimated time: {quiz.estimatedTime}m</p>
+              <p className="text-sm text-purple-700 mt-1">estimated: {quiz.estimatedTime}m</p>
             </div>
 
             <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-6 border border-orange-200">
@@ -216,86 +158,35 @@ export default function QuizResultsPage() {
           </div>
         </div>
 
-        {/* Performance by Difficulty */}
+        {/* Performance by difficulty */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Performance by Difficulty</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Easy */}
             <div className="rounded-2xl p-6 bg-green-50 border border-green-200">
-              <h3 className="font-semibold text-green-900 mb-4 flex items-center gap-2">
-                <span className="text-lg">⭐</span> Easy
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-green-700 font-medium mb-1">Correct: {difficultyStats.easy.correct}/{difficultyStats.easy.total}</p>
-                  <div className="w-full h-2 bg-green-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-green-600"
-                      style={{
-                        width: `${difficultyStats.easy.total > 0 ? (difficultyStats.easy.correct / difficultyStats.easy.total) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-                <p className="text-2xl font-bold text-green-600">
-                  {difficultyStats.easy.total > 0
-                    ? ((difficultyStats.easy.correct / difficultyStats.easy.total) * 100).toFixed(0)
-                    : 0}
-                  %
-                </p>
+              <h3 className="font-semibold text-green-900 mb-4 flex items-center gap-2"><span className="text-lg">⭐</span> Easy</h3>
+              <p className="text-sm text-green-700 font-medium mb-1">Correct: {difficultyStats.easy.correct}/{difficultyStats.easy.total}</p>
+              <div className="w-full h-2 bg-green-200 rounded-full overflow-hidden mb-3">
+                <div className="h-full bg-green-600" style={{ width: `${pct(difficultyStats.easy.correct, difficultyStats.easy.total)}%` }} />
               </div>
+              <p className="text-2xl font-bold text-green-600">{pct(difficultyStats.easy.correct, difficultyStats.easy.total).toFixed(0)}%</p>
             </div>
 
-            {/* Medium */}
             <div className="rounded-2xl p-6 bg-yellow-50 border border-yellow-200">
-              <h3 className="font-semibold text-yellow-900 mb-4 flex items-center gap-2">
-                <span className="text-lg">⭐⭐</span> Medium
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-yellow-700 font-medium mb-1">Correct: {difficultyStats.medium.correct}/{difficultyStats.medium.total}</p>
-                  <div className="w-full h-2 bg-yellow-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-yellow-600"
-                      style={{
-                        width: `${difficultyStats.medium.total > 0 ? (difficultyStats.medium.correct / difficultyStats.medium.total) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-                <p className="text-2xl font-bold text-yellow-600">
-                  {difficultyStats.medium.total > 0
-                    ? ((difficultyStats.medium.correct / difficultyStats.medium.total) * 100).toFixed(0)
-                    : 0}
-                  %
-                </p>
+              <h3 className="font-semibold text-yellow-900 mb-4 flex items-center gap-2"><span className="text-lg">⭐⭐</span> Medium</h3>
+              <p className="text-sm text-yellow-700 font-medium mb-1">Correct: {difficultyStats.medium.correct}/{difficultyStats.medium.total}</p>
+              <div className="w-full h-2 bg-yellow-200 rounded-full overflow-hidden mb-3">
+                <div className="h-full bg-yellow-600" style={{ width: `${pct(difficultyStats.medium.correct, difficultyStats.medium.total)}%` }} />
               </div>
+              <p className="text-2xl font-bold text-yellow-600">{pct(difficultyStats.medium.correct, difficultyStats.medium.total).toFixed(0)}%</p>
             </div>
 
-            {/* Hard */}
             <div className="rounded-2xl p-6 bg-red-50 border border-red-200">
-              <h3 className="font-semibold text-red-900 mb-4 flex items-center gap-2">
-                <span className="text-lg">⭐⭐⭐</span> Hard
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-red-700 font-medium mb-1">Correct: {difficultyStats.hard.correct}/{difficultyStats.hard.total}</p>
-                  <div className="w-full h-2 bg-red-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-red-600"
-                      style={{
-                        width: `${difficultyStats.hard.total > 0 ? (difficultyStats.hard.correct / difficultyStats.hard.total) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-                <p className="text-2xl font-bold text-red-600">
-                  {difficultyStats.hard.total > 0
-                    ? ((difficultyStats.hard.correct / difficultyStats.hard.total) * 100).toFixed(0)
-                    : 0}
-                  %
-                </p>
+              <h3 className="font-semibold text-red-900 mb-4 flex items-center gap-2"><span className="text-lg">⭐⭐⭐</span> Hard</h3>
+              <p className="text-sm text-red-700 font-medium mb-1">Correct: {difficultyStats.hard.correct}/{difficultyStats.hard.total}</p>
+              <div className="w-full h-2 bg-red-200 rounded-full overflow-hidden mb-3">
+                <div className="h-full bg-red-600" style={{ width: `${pct(difficultyStats.hard.correct, difficultyStats.hard.total)}%` }} />
               </div>
+              <p className="text-2xl font-bold text-red-600">{pct(difficultyStats.hard.correct, difficultyStats.hard.total).toFixed(0)}%</p>
             </div>
           </div>
         </div>
@@ -310,11 +201,11 @@ export default function QuizResultsPage() {
           </div>
         )}
 
-        {/* Action Buttons */}
+        {/* Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
           <button
             onClick={() => router.push("/quizzes")}
-            className="px-6 py-4 bg-white text-blue-600 border-2 border-blue-600 rounded-2xl font-semibold hover:bg-blue-50 transition-all"
+            className="px-6 py-4 bg-slate-100 text-slate-700 rounded-2xl font-semibold hover:bg-slate-200 transition-all"
           >
             Back to Quizzes
           </button>
@@ -326,62 +217,46 @@ export default function QuizResultsPage() {
           </button>
         </div>
 
-        {/* Answer Review Section */}
+        {/* Answer review */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Answer Review</h2>
           <div className="space-y-4">
             {quiz.questions.map((question, idx) => {
-              const answer = result.attempt.answers[idx];
+              const answer = result.answers[idx];
+              const isCorrect = !!answer?.isCorrect;
+              const selectedIndex = answer?.selectedIndex ?? -1;
+              const userAnswer = selectedIndex >= 0 ? question.options[selectedIndex] : "Not answered";
+              const correctAnswer = question.options[question.correctIndex];
               return (
                 <div
                   key={idx}
-                  className={`rounded-2xl p-6 border-l-4 ${
-                    answer?.isCorrect
-                      ? "bg-green-50 border-l-green-600"
-                      : "bg-red-50 border-l-red-600"
-                  }`}
+                  className={`rounded-2xl p-6 border-l-4 ${isCorrect ? "bg-green-50 border-l-green-600" : "bg-red-50 border-l-red-600"}`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <p className="text-sm text-slate-600 font-medium mb-1">
-                        Question {idx + 1}
-                      </p>
-                      <h4 className="font-semibold text-slate-900">
-                        {question.question}
-                      </h4>
+                      <p className="text-sm text-slate-600 font-medium mb-1">Question {idx + 1}</p>
+                      <h4 className="font-semibold text-slate-900">{question.question}</h4>
                     </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ml-4 ${
-                        answer?.isCorrect
-                          ? "bg-green-200 text-green-800"
-                          : "bg-red-200 text-red-800"
-                      }`}
-                    >
-                      {answer?.isCorrect ? "✓ Correct" : "✗ Incorrect"}
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ml-4 ${isCorrect ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>
+                      {isCorrect ? "✓ Correct" : "✗ Incorrect"}
                     </span>
                   </div>
 
                   <div className="space-y-2 text-sm">
                     <div>
                       <p className="text-slate-600 font-medium">Your answer:</p>
-                      <p className="text-slate-900 font-semibold">
-                        {answer?.selectedAnswer || "Not answered"}
-                      </p>
+                      <p className="text-slate-900 font-semibold">{userAnswer}</p>
                     </div>
-                    {!answer?.isCorrect && (
+                    {!isCorrect && (
                       <div>
                         <p className="text-slate-600 font-medium">Correct answer:</p>
-                        <p className="text-green-700 font-semibold">
-                          {question.correctAnswer}
-                        </p>
+                        <p className="text-green-700 font-semibold">{correctAnswer}</p>
                       </div>
                     )}
                     {question.explanation && (
                       <div>
                         <p className="text-slate-600 font-medium">Explanation:</p>
-                        <p className="text-slate-700 italic">
-                          {question.explanation}
-                        </p>
+                        <p className="text-slate-700 italic">{question.explanation}</p>
                       </div>
                     )}
                   </div>
