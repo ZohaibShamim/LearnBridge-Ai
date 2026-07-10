@@ -121,7 +121,9 @@ export const loginUserStep1 = asyncHandler(async (req, res) => {
   user.otp_expiry = Date.now() + 3 * 60 * 1000; // 3 minutes
   await user.save({ validateBeforeSave: false });
 
-  await otpEmailViaNodemailer(otp, user.email);
+  // DEV: email sending disabled, uncomment for production
+  // await otpEmailViaNodemailer(otp, user.email);
+  console.log(`[DEV] OTP for ${user.email}: ${otp}`);
 
   // temporary session token for OTP verification
   const sessionToken = jwt.sign(
@@ -173,7 +175,9 @@ export const resendOtp = asyncHandler(async (req, res) => {
   user.otp_expiry = Date.now() + 3 * 60 * 1000; // 3 minutes
   await user.save({ validateBeforeSave: false });
 
-  await otpEmailViaNodemailer(otp, user.email);
+  // DEV: email sending disabled, uncomment for production
+  // await otpEmailViaNodemailer(otp, user.email);
+  console.log(`[DEV] OTP for ${user.email}: ${otp}`);
 
   return res
     .status(200)
