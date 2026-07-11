@@ -119,6 +119,68 @@ export const getRoadmapById = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, roadmap, "Roadmap retrieved successfully"));
 });
 
+// Toggle completion of a single roadmap step (UC-06 / R1.10)
+// PATCH /api/v1/roadmaps/:roadmapId/progress   body: { stepIndex, completed }
+export const updateRoadmapProgress = asyncHandler(async (req, res) => {
+  const { roadmapId } = req.params;
+  const { stepIndex, completed } = req.body;
+  const userId = req.user?._id;
+
+  if (!userId) {
+    return res
+      .status(401)
+      .json(new ApiResponse(401, null, "User not authenticated"));
+  }
+
+  const idx = Number(stepIndex);
+  if (!Number.isInteger(idx) || idx < 0) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "stepIndex must be a non-negative integer"));
+  }
+
+  const roadmap = await Roadmap.findById(roadmapId);
+  if (!roadmap) {
+    return res.status(404).json(new ApiResponse(404, null, "Roadmap not found"));
+  }
+  if (roadmap.userId.toString() !== userId.toString()) {
+    return res
+      .status(403)
+      .json(new ApiResponse(403, null, "You don't have access to this roadmap"));
+  }
+
+  const totalSteps = roadmap.roadmap?.steps?.length || 0;
+  if (idx >= totalSteps) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "stepIndex is out of range for this roadmap"));
+  }
+
+  // Atomic set membership: add on complete, remove on un-complete (idempotent either way).
+  const update = completed
+    ? { $addToSet: { completedSteps: idx } }
+    : { $pull: { completedSteps: idx } };
+
+  const updated = await Roadmap.findByIdAndUpdate(roadmapId, update, { new: true });
+
+  const completedCount = updated.completedSteps.length;
+  const percentage = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        _id: updated._id,
+        completedSteps: updated.completedSteps,
+        totalSteps,
+        completedCount,
+        percentage,
+      },
+      "Progress updated"
+    )
+  );
+});
+
 // Delete a roadmap
 export const deleteRoadmap = asyncHandler(async (req, res) => {
   const { roadmapId } = req.params;

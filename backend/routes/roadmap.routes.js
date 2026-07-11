@@ -3,6 +3,7 @@ import {
   saveRoadmap,
   getRoadmaps,
   getRoadmapById,
+  updateRoadmapProgress,
   deleteRoadmap,
 } from "../controllers/roadmaps/roadmaps.controller.js";
 import { verifyUser } from "../middlewares/auth.middleware.js";
@@ -20,6 +21,9 @@ router.get("/", getRoadmaps);
 
 // Get a specific roadmap by ID
 router.get("/:roadmapId", getRoadmapById);
+
+// Toggle completion of a step (progress tracking)
+router.patch("/:roadmapId/progress", updateRoadmapProgress);
 
 // Delete a roadmap
 router.delete("/:roadmapId", deleteRoadmap);
