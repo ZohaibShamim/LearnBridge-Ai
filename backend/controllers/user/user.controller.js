@@ -5,7 +5,6 @@ import { ApiError } from "../../utils/appiError.js";
 import mongoose from "mongoose";
 import { hashPassword, decodePassword } from "../../utils/password.js";
 import { ApiResponse } from "../../utils/apiResponse.js";
-import { otpEmail } from "../../utils/emails.js";
 import jwt from "jsonwebtoken";
 import { Job } from "../../models/jobs.schema.js";
 import cvQueue from "../../queues/cv.queue.js";
