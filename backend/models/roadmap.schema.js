@@ -73,6 +73,10 @@ const roadmapSchema = new mongoose.Schema({
     },
   ],
 
+  // Skill analysis carried over from the job (R1.6 extraction, R1.7 gap).
+  extractedSkills: [{ type: String }],
+  missingSkills: [{ type: String }],
+
 }, { timestamps: true });
 
 export const Roadmap = mongoose.model("Roadmap", roadmapSchema);
