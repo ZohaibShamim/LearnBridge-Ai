@@ -15,9 +15,10 @@ export const uploadCvOnCloudinary = async (localFilePath) => {
 
   try {
     const response = await cloudinary.uploader.upload(localFilePath, {
-      resource_type: "image",
-      folder: "cv_images",
-      allowed_formats: ["jpg", "jpeg", "png"],
+      // "auto" lets Cloudinary store images/PDF as image resources and DOCX as raw.
+      resource_type: "auto",
+      folder: "cv_uploads",
+      allowed_formats: ["jpg", "jpeg", "png", "pdf", "docx"],
     });
 
     return response;

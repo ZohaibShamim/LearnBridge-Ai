@@ -18,6 +18,13 @@ const jobSchema = new mongoose.Schema({
     required: true,
   },
 
+  // How to extract text from cvUrl: "image" (OCR), "pdf", or "docx".
+  fileType: {
+    type: String,
+    enum: ["image", "pdf", "docx"],
+    default: "image",
+  },
+
   role: {
     type: String,
     enum: ["data_scientist", "software_engineer", "machine_learning", "ai"],

@@ -37,7 +37,7 @@ async function init() {
     "cv-processing",
     async (job) => {
       // Destructure with default value for role
-      const { jobId, cvUrl, role = null } = job.data;
+      const { jobId, cvUrl, role = null, fileType = "image" } = job.data;
 
       console.log("[Worker] Processing job with data:", JSON.stringify(job.data, null, 2));
       console.log("[Worker] Role extracted from job:", role);
@@ -48,9 +48,14 @@ async function init() {
       try {
         await Job.findByIdAndUpdate(jobId, { status: "processing" });
 
-        const extractedText = await extractTextFromCV(cvUrl);
-
-        await Job.findByIdAndUpdate(jobId, { extractedText });
+        // PDF/DOCX text is extracted inline at upload time; reuse it. Only run (slow) OCR
+        // when there's no text yet (images, or a scanned PDF with no text layer).
+        const jobDoc = await Job.findById(jobId);
+        let extractedText = jobDoc?.extractedText?.trim() ? jobDoc.extractedText : "";
+        if (!extractedText) {
+          extractedText = await extractTextFromCV(cvUrl, fileType);
+          await Job.findByIdAndUpdate(jobId, { extractedText });
+        }
 
         // Construct payload - MAKE SURE role is included
         const payload = { 

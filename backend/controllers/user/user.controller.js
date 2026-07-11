@@ -10,8 +10,10 @@ import jwt from "jsonwebtoken";
 import { Job } from "../../models/jobs.schema.js";
 import cvQueue from "../../queues/cv.queue.js";
 import { uploadCvOnCloudinary } from "../../utils/cloudinary.js";
+import { extractTextFromBuffer } from "../../utils/ocr.js";
 import bcrypt from "bcrypt";
 import fs from "fs";
+import path from "path";
 import { otpEmailViaNodemailer } from "../../utils/nodemailer.js";
 
 // register user
@@ -240,6 +242,10 @@ export const verifyOTPAndLogin = asyncHandler(async (req, res) => {
 
 export const uploadCv = asyncHandler(async (req, res) => {
   const { role } = req.body;
+
+  if (!req.file) {
+    throw new ApiError(400, "A CV file (JPG, PNG, PDF, or DOCX) is required");
+  }
   const localImagePath = req.file.path;
 
   // Validate role is provided and is a string
@@ -250,8 +256,25 @@ export const uploadCv = asyncHandler(async (req, res) => {
     );
   }
 
-  console.log("[uploadCv] Role from request body:", role);
-  console.log("[uploadCv] Full request body:", req.body);
+  // Determine how to extract text from the file extension (authoritative — client-sent
+  // mime is unreliable, e.g. DOCX often arrives as application/octet-stream).
+  const ext = path.extname(req.file.originalname || "").toLowerCase();
+  const fileType = ext === ".pdf" ? "pdf" : ext === ".docx" ? "docx" : "image";
+
+  console.log("[uploadCv] Role:", role, "| fileType:", fileType);
+
+  // Extract PDF/DOCX text from the local file now (fast, ms) — Cloudinary blocks PDF/raw
+  // delivery by default, so the worker cannot re-download these. Image OCR (slow) stays in
+  // the worker. Best-effort: a failed extraction degrades to empty, never blocks upload.
+  let extractedText = "";
+  if (fileType === "pdf" || fileType === "docx") {
+    try {
+      const buffer = fs.readFileSync(localImagePath);
+      extractedText = await extractTextFromBuffer(buffer, fileType);
+    } catch (e) {
+      console.warn("[uploadCv] inline text extraction failed:", e.message);
+    }
+  }
 
   const uploadResult = await uploadCvOnCloudinary(localImagePath);
 
@@ -261,16 +284,19 @@ export const uploadCv = asyncHandler(async (req, res) => {
   const job = await Job.create({
     userId: req.user._id,
     cvUrl,
+    fileType,
     role,
+    extractedText: extractedText || undefined,
   });
 
   await cvQueue.add("cv-processing", {
     jobId: job._id.toString(),
     cvUrl,
+    fileType,
     role: role,
   });
 
-  console.log("[uploadCv] Job queued with role:", role);
+  console.log("[uploadCv] Job queued with role:", role, "fileType:", fileType);
   res
     .status(202)
     .json(
