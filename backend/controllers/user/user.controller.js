@@ -13,6 +13,7 @@ import { uploadCvOnCloudinary } from "../../utils/cloudinary.js";
 import { extractTextFromBuffer } from "../../utils/ocr.js";
 import bcrypt from "bcrypt";
 import fs from "fs";
+import path from "path";
 import { otpEmailViaNodemailer } from "../../utils/nodemailer.js";
 
 // register user
@@ -255,14 +256,10 @@ export const uploadCv = asyncHandler(async (req, res) => {
     );
   }
 
-  // Map the uploaded mime type to how the worker should extract text.
-  const fileType =
-    req.file.mimetype === "application/pdf"
-      ? "pdf"
-      : req.file.mimetype ===
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        ? "docx"
-        : "image";
+  // Determine how to extract text from the file extension (authoritative — client-sent
+  // mime is unreliable, e.g. DOCX often arrives as application/octet-stream).
+  const ext = path.extname(req.file.originalname || "").toLowerCase();
+  const fileType = ext === ".pdf" ? "pdf" : ext === ".docx" ? "docx" : "image";
 
   console.log("[uploadCv] Role:", role, "| fileType:", fileType);
 

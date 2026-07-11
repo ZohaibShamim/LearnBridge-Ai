@@ -29,7 +29,12 @@ export const upload = multer({
     const ext = path.extname(file.originalname).toLowerCase();
     const isAllowedExt = allowedExts.includes(ext);
 
-    if (isAllowedMime && isAllowedExt) {
+    // Gate on the extension (authoritative). The mime is only a secondary signal because
+    // clients (curl, some browsers) send "application/octet-stream" for DOCX. Reject only
+    // when a mismatched, non-generic mime is claimed (e.g. .pdf sent as text/html).
+    const mimeOk = isAllowedMime || file.mimetype === "application/octet-stream" || !file.mimetype;
+
+    if (isAllowedExt && mimeOk) {
       cb(null, true);
     } else {
       cb(new Error("Only JPG, PNG, PDF, or DOCX files are allowed!"), false);
