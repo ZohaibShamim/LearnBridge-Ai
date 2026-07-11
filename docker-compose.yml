@@ -1,0 +1,114 @@
+# Learn Bridge AI — full stack (frontend + backend API + worker + AI service + Mongo + Redis).
+# Quick start:  cp .env.example .env  (fill GROQ_API_KEY + CLOUDINARY_*)  then  docker compose up --build
+# Then open http://localhost:3000
+
+# Shared env for the Express API and the BullMQ worker (they need the same connections/secrets).
+x-backend-env: &backend-env
+  # replicaSet=rs0 is required because registerUser uses a Mongoose transaction (atomic
+  # User + Profile create) — transactions need a replica set, not standalone mongo.
+  MONGO_URI: mongodb://mongo:27017/learnbridge?replicaSet=rs0&directConnection=true
+  REDIS_URL: redis://redis:6379
+  FASTAPI_URL: http://ai:8001
+  FRONTEND_URL: http://localhost:3000
+  NODE_ENV: production
+  ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-dev_access_secret_change_me}
+  REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-dev_refresh_secret_change_me}
+  ACCESS_TOKEN_EXPIRY: ${ACCESS_TOKEN_EXPIRY:-1d}
+  REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY:-10d}
+  CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+  CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+  CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+  EMAIL_USER: ${EMAIL_USER:-}
+  EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+  ROADMAP_TIMEOUT_MS: ${ROADMAP_TIMEOUT_MS:-30000}
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    # Single-node replica set so Mongoose transactions work (see MONGO_URI above).
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      # Idempotent: initiate the RS on first run, then report ok once it's up.
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--eval",
+          "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ai:
+    build: ./ai
+    restart: unless-stopped
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-groq}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-}
+      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SERPER_API_KEY: ${SERPER_API_KEY:-}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+    ports:
+      - "8001:8001"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      PORT: "8010"
+    ports:
+      - "8010:8010"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ai:
+        condition: service_started
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: node workers/cv.worker.js
+    environment:
+      <<: *backend-env
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ai:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the client bundle at build time — the browser calls the host-mapped backend.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8010/api/v1}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:
