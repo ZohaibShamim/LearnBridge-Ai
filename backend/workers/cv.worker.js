@@ -37,7 +37,7 @@ async function init() {
     "cv-processing",
     async (job) => {
       // Destructure with default value for role
-      const { jobId, cvUrl, role = null } = job.data;
+      const { jobId, cvUrl, role = null, fileType = "image" } = job.data;
 
       console.log("[Worker] Processing job with data:", JSON.stringify(job.data, null, 2));
       console.log("[Worker] Role extracted from job:", role);
@@ -48,7 +48,7 @@ async function init() {
       try {
         await Job.findByIdAndUpdate(jobId, { status: "processing" });
 
-        const extractedText = await extractTextFromCV(cvUrl);
+        const extractedText = await extractTextFromCV(cvUrl, fileType);
 
         await Job.findByIdAndUpdate(jobId, { extractedText });
 

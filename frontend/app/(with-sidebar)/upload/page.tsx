@@ -139,9 +139,15 @@ export default function UploadPage() {
 
   const handleFile = (selectedFile: File) => {
     // Validate file type
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+    const allowedTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+    ];
     if (!allowedTypes.includes(selectedFile.type)) {
-      setError("Only JPG, JPEG, PNG, and PDF files are allowed");
+      setError("Only JPG, JPEG, PNG, PDF, and DOCX files are allowed");
       return;
     }
 
@@ -366,7 +372,7 @@ export default function UploadPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/jpg,image/png,application/pdf"
+                accept="image/jpeg,image/jpg,image/png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
                 onChange={handleFileChange}
                 disabled={!selectedRole}
                 className="hidden"
@@ -379,7 +385,7 @@ export default function UploadPage() {
                 Choose File
               </button>
               <p className="text-xs text-slate-400 mt-6">
-                Supported: JPG, JPEG, PNG, PDF (max 10MB)
+                Supported: JPG, JPEG, PNG, PDF, DOCX (max 10MB)
               </p>
             </div>
           ) : (
@@ -398,7 +404,9 @@ export default function UploadPage() {
                       <svg className="w-16 h-16 mx-auto text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      <p className="text-slate-500 font-medium">PDF Document</p>
+                      <p className="text-slate-500 font-medium">
+                        {file?.name?.toLowerCase().endsWith(".docx") ? "Word Document" : "PDF Document"}
+                      </p>
                     </div>
                   </div>
                 )}

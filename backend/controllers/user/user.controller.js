@@ -240,6 +240,10 @@ export const verifyOTPAndLogin = asyncHandler(async (req, res) => {
 
 export const uploadCv = asyncHandler(async (req, res) => {
   const { role } = req.body;
+
+  if (!req.file) {
+    throw new ApiError(400, "A CV file (JPG, PNG, PDF, or DOCX) is required");
+  }
   const localImagePath = req.file.path;
 
   // Validate role is provided and is a string
@@ -250,8 +254,16 @@ export const uploadCv = asyncHandler(async (req, res) => {
     );
   }
 
-  console.log("[uploadCv] Role from request body:", role);
-  console.log("[uploadCv] Full request body:", req.body);
+  // Map the uploaded mime type to how the worker should extract text.
+  const fileType =
+    req.file.mimetype === "application/pdf"
+      ? "pdf"
+      : req.file.mimetype ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ? "docx"
+        : "image";
+
+  console.log("[uploadCv] Role:", role, "| fileType:", fileType);
 
   const uploadResult = await uploadCvOnCloudinary(localImagePath);
 
@@ -261,16 +273,18 @@ export const uploadCv = asyncHandler(async (req, res) => {
   const job = await Job.create({
     userId: req.user._id,
     cvUrl,
+    fileType,
     role,
   });
 
   await cvQueue.add("cv-processing", {
     jobId: job._id.toString(),
     cvUrl,
+    fileType,
     role: role,
   });
 
-  console.log("[uploadCv] Job queued with role:", role);
+  console.log("[uploadCv] Job queued with role:", role, "fileType:", fileType);
   res
     .status(202)
     .json(
