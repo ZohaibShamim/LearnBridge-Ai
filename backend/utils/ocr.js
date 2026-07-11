@@ -1,70 +1,44 @@
 import Tesseract from "tesseract.js";
-import axios from "axios";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 
-async function downloadBuffer(url) {
-  const res = await axios.get(url, { responseType: "arraybuffer", timeout: 30000 });
-  return Buffer.from(res.data);
+// Fast text extraction from a local file buffer (PDF/DOCX). Done inline in the upload
+// controller because it's quick (ms) and because Cloudinary blocks PDF/raw *delivery* by
+// default (so the worker can't re-download the file). Image OCR is slow and stays in the
+// worker (see extractTextFromCV).
+export async function extractTextFromBuffer(buffer, fileType) {
+  if (fileType === "pdf") {
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    await parser.destroy?.();
+    return result.text || "";
+  }
+  if (fileType === "docx") {
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value || "";
+  }
+  return "";
 }
 
-// Turn a Cloudinary PDF delivery URL into a rasterized first-page PNG so Tesseract can
-// OCR a scanned (image-only) PDF. e.g. /image/upload/v1/f.pdf -> /image/upload/pg_1/v1/f.png
-function cloudinaryPdfToPng(url) {
+// Turn a Cloudinary PDF delivery URL into a rasterized first-page PNG. The output format is
+// PNG (not PDF), so it is NOT subject to Cloudinary's PDF-delivery restriction — this lets
+// us OCR a scanned/image-only PDF whose text layer came back empty.
+export function cloudinaryPdfToPng(url) {
   return url
     .replace("/upload/", "/upload/pg_1/")
     .replace(/\.pdf($|\?)/i, ".png$1");
 }
 
-async function extractFromImage(url) {
+async function ocrImageUrl(url) {
   const result = await Tesseract.recognize(url, "eng");
-  return result.data.text;
+  return result.data.text || "";
 }
 
-async function extractFromPdf(url) {
-  const buffer = await downloadBuffer(url);
-  let text = "";
-  try {
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
-    text = result.text || "";
-    await parser.destroy?.();
-  } catch (e) {
-    console.warn("[ocr] pdf-parse failed, will try OCR fallback:", e.message);
-  }
-
-  // Scanned/image-only PDF -> little or no embedded text. Fall back to OCR on a
-  // rasterized page image delivered by Cloudinary.
-  if (text.trim().length < 20) {
-    try {
-      const pngUrl = cloudinaryPdfToPng(url);
-      console.log("[ocr] PDF had no text layer, OCR fallback on:", pngUrl);
-      text = await extractFromImage(pngUrl);
-    } catch (e) {
-      console.warn("[ocr] PDF OCR fallback failed:", e.message);
-    }
-  }
-  return text;
-}
-
-async function extractFromDocx(url) {
-  const buffer = await downloadBuffer(url);
-  const result = await mammoth.extractRawText({ buffer });
-  return result.value || "";
-}
-
-// Unified entry point. fileType comes from the Job ("image" | "pdf" | "docx");
-// falls back to extension sniffing, then to OCR.
+// OCR path used by the worker. Images are OCR'd directly. For a PDF that arrived here with
+// no extracted text (scanned PDF), OCR its rasterized first page.
 export async function extractTextFromCV(cvUrl, fileType) {
-  const type = fileType || sniffType(cvUrl);
-  if (type === "pdf") return extractFromPdf(cvUrl);
-  if (type === "docx") return extractFromDocx(cvUrl);
-  return extractFromImage(cvUrl);
-}
-
-function sniffType(url) {
-  const clean = (url || "").split("?")[0].toLowerCase();
-  if (clean.endsWith(".pdf")) return "pdf";
-  if (clean.endsWith(".docx")) return "docx";
-  return "image";
+  if (fileType === "pdf") {
+    return ocrImageUrl(cloudinaryPdfToPng(cvUrl));
+  }
+  return ocrImageUrl(cvUrl);
 }

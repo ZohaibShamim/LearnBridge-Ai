@@ -10,6 +10,7 @@ import jwt from "jsonwebtoken";
 import { Job } from "../../models/jobs.schema.js";
 import cvQueue from "../../queues/cv.queue.js";
 import { uploadCvOnCloudinary } from "../../utils/cloudinary.js";
+import { extractTextFromBuffer } from "../../utils/ocr.js";
 import bcrypt from "bcrypt";
 import fs from "fs";
 import { otpEmailViaNodemailer } from "../../utils/nodemailer.js";
@@ -265,6 +266,19 @@ export const uploadCv = asyncHandler(async (req, res) => {
 
   console.log("[uploadCv] Role:", role, "| fileType:", fileType);
 
+  // Extract PDF/DOCX text from the local file now (fast, ms) — Cloudinary blocks PDF/raw
+  // delivery by default, so the worker cannot re-download these. Image OCR (slow) stays in
+  // the worker. Best-effort: a failed extraction degrades to empty, never blocks upload.
+  let extractedText = "";
+  if (fileType === "pdf" || fileType === "docx") {
+    try {
+      const buffer = fs.readFileSync(localImagePath);
+      extractedText = await extractTextFromBuffer(buffer, fileType);
+    } catch (e) {
+      console.warn("[uploadCv] inline text extraction failed:", e.message);
+    }
+  }
+
   const uploadResult = await uploadCvOnCloudinary(localImagePath);
 
   const cvUrl =
@@ -275,6 +289,7 @@ export const uploadCv = asyncHandler(async (req, res) => {
     cvUrl,
     fileType,
     role,
+    extractedText: extractedText || undefined,
   });
 
   await cvQueue.add("cv-processing", {

@@ -48,9 +48,14 @@ async function init() {
       try {
         await Job.findByIdAndUpdate(jobId, { status: "processing" });
 
-        const extractedText = await extractTextFromCV(cvUrl, fileType);
-
-        await Job.findByIdAndUpdate(jobId, { extractedText });
+        // PDF/DOCX text is extracted inline at upload time; reuse it. Only run (slow) OCR
+        // when there's no text yet (images, or a scanned PDF with no text layer).
+        const jobDoc = await Job.findById(jobId);
+        let extractedText = jobDoc?.extractedText?.trim() ? jobDoc.extractedText : "";
+        if (!extractedText) {
+          extractedText = await extractTextFromCV(cvUrl, fileType);
+          await Job.findByIdAndUpdate(jobId, { extractedText });
+        }
 
         // Construct payload - MAKE SURE role is included
         const payload = { 
