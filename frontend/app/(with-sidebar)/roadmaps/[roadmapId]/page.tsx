@@ -9,6 +9,7 @@ import {
   SavedRoadmap,
 } from "@/config/services/roadmap.service";
 import { normalizeResources, RoadmapStep, Resource } from "@/config/services/cv.service";
+import { SkillGapSection } from "@/components/SkillGap";
 
 // Resource card component
 function ResourceCard({ resource }: { resource: Resource }) {
@@ -318,6 +319,9 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
             </div>
           </div>
         </div>
+
+        {/* Skill extraction + gap */}
+        <SkillGapSection extractedSkills={roadmap.extractedSkills} missingSkills={roadmap.missingSkills} />
 
         {/* Steps */}
         <div className="mb-8">

@@ -4,7 +4,7 @@ import { Roadmap } from "../../models/roadmap.schema.js";
 
 // Save a new roadmap
 export const saveRoadmap = asyncHandler(async (req, res) => {
-  const { jobTitle, roadmap, tags } = req.body;
+  const { jobTitle, roadmap, tags, extractedSkills, missingSkills } = req.body;
   const userId = req.user?._id;
 
   if (!userId) {
@@ -63,6 +63,8 @@ export const saveRoadmap = asyncHandler(async (req, res) => {
       steps: roadmap.steps,
     },
     tags: tags || [],
+    extractedSkills: extractedSkills || [],
+    missingSkills: missingSkills || [],
   });
 
   return res

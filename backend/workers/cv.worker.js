@@ -86,6 +86,9 @@ async function init() {
         await Job.findByIdAndUpdate(jobId, {
           roadmap: response.data?.roadmap || null,
           tags: response.data?.tags || [],
+          extractedSkills: response.data?.extracted_skills || [],
+          requiredSkills: response.data?.required_skills || [],
+          missingSkills: response.data?.missing_skills || [],
           status: "completed",
         });
       } catch (err) {

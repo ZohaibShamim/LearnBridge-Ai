@@ -46,6 +46,9 @@ export interface JobStatus {
   extractedText?: string;
   roadmap?: Roadmap;
   tags?: string[];  // AI-generated tags from roadmap skills
+  extractedSkills?: string[];  // skills found in the CV (R1.6)
+  requiredSkills?: string[];   // skills the target role needs
+  missingSkills?: string[];    // required - extracted (R1.7)
   error?: string;
   createdAt: string;
   updatedAt: string;

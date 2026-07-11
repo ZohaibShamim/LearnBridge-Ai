@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getJobStatus, JobStatus, RoadmapStep, Resource, normalizeResources, convertRoleToTitle } from "@/config/services/cv.service";
 import { saveRoadmap } from "@/config/services/roadmap.service";
+import { SkillGapSection } from "@/components/SkillGap";
 import { useAuthStore } from "@/store/auth";
 import { clearAuthData } from "@/config/token/token";
 
@@ -359,6 +360,8 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
         roadmap: roadmap,
         description: `AI-generated roadmap for ${roadmap.career_goal}`,
         tags: job.tags || [],
+        extractedSkills: job.extractedSkills || [],
+        missingSkills: job.missingSkills || [],
       });
 
       setSaveMessage({
@@ -521,6 +524,9 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
             </div>
           </div>
         </div>
+
+        {/* Skill extraction + gap */}
+        <SkillGapSection extractedSkills={job.extractedSkills} missingSkills={job.missingSkills} />
 
         {/* Roadmap Steps */}
         <div className="mb-8">

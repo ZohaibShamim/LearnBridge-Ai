@@ -4,6 +4,7 @@ import re
 from app.schema.cv import CVRequest
 from app.services.ai_service import generate_roadmap_from_cv
 from app.services.search_service import enrich_roadmap_with_resources
+from app.services.skill_service import extract_skills_and_gap
 from collections import Counter
 
 router = APIRouter(prefix="/ai", tags=["AI"])
@@ -92,13 +93,22 @@ def generate_roadmap(data: CVRequest):
         
         # Extract tags from the roadmap skills
         tags = extract_tags_from_roadmap(roadmap_with_resources)
-        
+
         print(f"[DEBUG] Extracted tags: {tags}")
-        
+
+        # Skill extraction (R1.6) + gap vs target role (R1.7). Best-effort: returns empty
+        # lists on any failure so it never breaks the roadmap response.
+        skill_data = extract_skills_and_gap(data.cv_text, role)
+        print(f"[DEBUG] Extracted skills: {skill_data['extracted_skills']}")
+        print(f"[DEBUG] Missing skills: {skill_data['missing_skills']}")
+
         return {
             "job_id": data.job_id,
             "roadmap": roadmap_with_resources,
-            "tags": tags
+            "tags": tags,
+            "extracted_skills": skill_data["extracted_skills"],
+            "required_skills": skill_data["required_skills"],
+            "missing_skills": skill_data["missing_skills"],
         }
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse AI response as JSON: {str(e)}")

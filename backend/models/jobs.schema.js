@@ -27,6 +27,11 @@ const jobSchema = new mongoose.Schema({
     type: String,
   }],
 
+  // Skill analysis from the AI service (R1.6 extraction, R1.7 gap).
+  extractedSkills: [{ type: String }],
+  requiredSkills: [{ type: String }],
+  missingSkills: [{ type: String }],
+
   extractedText: {
     type: String,
   },
