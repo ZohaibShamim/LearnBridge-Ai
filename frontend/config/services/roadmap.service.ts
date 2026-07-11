@@ -9,6 +9,8 @@ export interface SavedRoadmap {
   description?: string;
   isActive: boolean;
   tags?: string[];
+  extractedSkills?: string[];
+  missingSkills?: string[];
   completedSteps?: number[]; // 0-based indices of completed steps
   createdAt: string;
   updatedAt: string;
@@ -27,6 +29,8 @@ export interface SaveRoadmapPayload {
   roadmap: Roadmap;
   description?: string;
   tags?: string[];
+  extractedSkills?: string[];
+  missingSkills?: string[];
 }
 
 export const saveRoadmap = async (
