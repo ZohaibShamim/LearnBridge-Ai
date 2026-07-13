@@ -45,6 +45,9 @@ export interface SubmitResult {
   total: number;
   percentage: number;
   grade: string;
+  passed?: boolean;
+  badgeAwarded?: boolean;
+  progress?: number | null; // roadmap % after this submission (subtopic quizzes only)
 }
 
 // A question in the results review — includes the correct answer + explanation.
@@ -71,6 +74,9 @@ export interface AttemptResult {
   total: number;
   percentage: number;
   grade: string;
+  passed?: boolean;
+  badgeAwarded?: boolean;
+  difficulty?: QuizDifficulty;
   timeSpent: number;
   feedback?: string;
   createdAt: string;
@@ -91,6 +97,21 @@ export const generateQuiz = async (
   payload: GenerateQuizPayload
 ): Promise<ApiResponse<Quiz>> => {
   const response = await api.post<ApiResponse<Quiz>>("/quizzes/generate", payload);
+  return response.data;
+};
+
+export interface SubtopicQuizPayload {
+  roadmapId: string;
+  stepIndex: number;
+  subtopicId: string;
+  difficulty: Difficulty;
+}
+
+// Lazily gets (or generates + caches) the quiz for one roadmap subtopic at a fixed difficulty.
+export const getOrCreateSubtopicQuiz = async (
+  payload: SubtopicQuizPayload
+): Promise<ApiResponse<Quiz>> => {
+  const response = await api.post<ApiResponse<Quiz>>("/quizzes/subtopic", payload);
   return response.data;
 };
 
