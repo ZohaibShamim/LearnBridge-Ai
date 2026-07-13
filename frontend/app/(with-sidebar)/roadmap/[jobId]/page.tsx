@@ -1,13 +1,30 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getJobStatus, JobStatus, RoadmapStep, Resource, normalizeResources, convertRoleToTitle } from "@/config/services/cv.service";
 import { saveRoadmap } from "@/config/services/roadmap.service";
 import { SkillGapSection } from "@/components/SkillGap";
-import { useAuthStore } from "@/store/auth";
-import { clearAuthData } from "@/config/token/token";
+import {
+  Zap,
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  Clock,
+  Save,
+  ExternalLink,
+  ArrowUp,
+} from "lucide-react";
+import {
+  Button,
+  Card,
+  Badge,
+  Progress,
+  Spinner,
+  toast,
+} from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 // Step status type
 type StepStatus = "pending" | "active" | "completed";
@@ -60,74 +77,81 @@ function ProcessingAnimation({ jobStatus, hasExtractedText }: { jobStatus: strin
     { id: "resources", label: "Finding resources...", icon: "📚", status: getStepStatus("resources") },
   ];
 
-  // Find the current active step for the pulsing animation
-  const activeStepIndex = steps.findIndex(s => s.status === "active");
+  const completedCount = steps.filter((s) => s.status === "completed").length;
+  const overallPct = Math.round((completedCount / steps.length) * 100);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-      <div className="text-center max-w-md mx-auto px-4">
-        {/* Animated Logo */}
-        <div className="mb-8">
-          <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl flex items-center justify-center animate-pulse">
-            <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center px-4 py-10">
+      <Card className="w-full max-w-md p-8 text-center">
+        {/* Brand mark */}
+        <div className="mb-6 flex justify-center">
+          <div className="relative">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+              <Zap className="w-10 h-10 text-white" />
+            </div>
+            <span className="absolute -inset-1 -z-10 rounded-3xl bg-blue-500/20 blur-lg animate-pulse" />
           </div>
         </div>
 
-        <h2 className="text-2xl font-bold text-slate-900 mb-3">
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">
           Creating Your Roadmap
         </h2>
-        <p className="text-slate-600 mb-8">
+        <p className="text-slate-600 mb-6">
           Our AI is analyzing your CV and crafting a personalized learning path just for you.
         </p>
 
+        {/* Overall progress */}
+        <div className="mb-6">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-500">Progress</span>
+            <span className="text-xs font-bold text-slate-700">{overallPct}%</span>
+          </div>
+          <Progress value={overallPct} />
+        </div>
+
         {/* Progress Steps */}
-        <div className="space-y-3 mb-8">
-          {steps.map((step, index) => (
+        <div className="space-y-2.5 mb-6 text-left">
+          {steps.map((step) => (
             <div
               key={step.id}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-500 ${
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-500",
                 step.status === "active"
-                  ? "bg-blue-100 scale-105 shadow-md"
+                  ? "bg-blue-50 border-blue-200 shadow-sm"
                   : step.status === "completed"
-                  ? "bg-green-50 border border-green-200"
-                  : "bg-white/50 border border-slate-100"
-              }`}
+                  ? "bg-green-50 border-green-200"
+                  : "bg-white border-slate-100"
+              )}
             >
-              <span className="text-2xl">{step.icon}</span>
+              <span className="text-xl">{step.icon}</span>
               <span
-                className={`font-medium flex-1 text-left ${
+                className={cn(
+                  "flex-1 text-sm font-medium",
                   step.status === "active"
                     ? "text-blue-700"
                     : step.status === "completed"
-                    ? "text-green-600"
+                    ? "text-green-700"
                     : "text-slate-400"
-                }`}
+                )}
               >
-                {step.status === "completed" && step.id === "extract" ? "Text Extracted ✓" : step.label}
+                {step.status === "completed" && step.id === "extract" ? "Text Extracted" : step.label}
               </span>
-              {step.status === "active" && (
-                <svg className="w-5 h-5 text-blue-600 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              )}
+              {step.status === "active" && <Spinner className="h-4 w-4" />}
               {step.status === "completed" && (
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                </svg>
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
+                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                </span>
               )}
             </div>
           ))}
         </div>
 
         <p className="text-sm text-slate-500">
-          {hasExtractedText 
-            ? "AI is generating your personalized roadmap..." 
+          {hasExtractedText
+            ? "AI is generating your personalized roadmap..."
             : "This usually takes 30-60 seconds..."}
         </p>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -140,27 +164,17 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-red-50 to-orange-50 flex items-center justify-center">
       <div className="text-center max-w-md mx-auto px-4">
         <div className="w-20 h-20 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-6">
-          <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
+          <AlertTriangle className="h-10 w-10 text-red-500" />
         </div>
         <h2 className="text-2xl font-bold text-slate-900 mb-3">
           Something went wrong
         </h2>
         <p className="text-slate-600 mb-6">{message}</p>
         <div className="flex gap-3 justify-center">
-          <button
-            onClick={onRetry}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all"
-          >
-            Try Again
-          </button>
-          <button
-            onClick={() => router.push("/upload")}
-            className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-xl transition-all"
-          >
+          <Button onClick={onRetry}>Try Again</Button>
+          <Button variant="secondary" onClick={() => router.push("/upload")}>
             Upload New CV
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -222,9 +236,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
             {resource.url}
           </p>
         </div>
-        <svg className="w-5 h-5 text-slate-300 group-hover:text-blue-500 flex-shrink-0 transition-all group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-        </svg>
+        <ExternalLink className="h-5 w-5 flex-shrink-0 text-slate-300 transition-all group-hover:translate-x-1 group-hover:text-blue-500" />
       </div>
     </a>
   );
@@ -252,8 +264,8 @@ function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; i
 
         {/* Content */}
         <div className="flex-1 pb-8">
-          <div
-            className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden cursor-pointer hover:shadow-md transition-all"
+          <Card
+            className="overflow-hidden cursor-pointer transition-all hover:shadow-[var(--shadow-lg)]"
             onClick={() => setIsExpanded(!isExpanded)}
           >
             {/* Header */}
@@ -264,21 +276,14 @@ function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; i
                 </h3>
                 {step.duration && (
                   <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <Clock className="h-4 w-4" />
                     {step.duration}
                   </div>
                 )}
               </div>
-              <svg
-                className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-              </svg>
+              <ChevronDown
+                className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+              />
             </div>
 
             {/* Expanded content */}
@@ -295,12 +300,7 @@ function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; i
                     <h4 className="text-sm font-medium text-slate-700 mb-2">Skills to Learn</h4>
                     <div className="flex flex-wrap gap-2">
                       {step.skills.map((skill, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 text-sm font-medium rounded-full border border-blue-100"
-                        >
-                          {skill}
-                        </span>
+                        <Badge key={i} tone="brand">{skill}</Badge>
                       ))}
                     </div>
                   </div>
@@ -324,7 +324,7 @@ function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; i
                 )}
               </div>
             )}
-          </div>
+          </Card>
         </div>
       </div>
     </div>
@@ -335,26 +335,17 @@ function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; i
 function RoadmapDisplay({ job }: { job: JobStatus }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user, logout } = useAuthStore();
   const roadmap = job.roadmap;
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  const handleLogout = () => {
-    clearAuthData();
-    logout();
-    router.push("/login");
-  };
 
   const handleSaveRoadmap = async () => {
     if (!roadmap) return;
 
     setIsSaving(true);
-    setSaveMessage(null);
 
     try {
       const jobTitle = convertRoleToTitle(job.role);
-      
+
       await saveRoadmap({
         jobTitle: jobTitle,
         roadmap: roadmap,
@@ -364,22 +355,13 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
         missingSkills: job.missingSkills || [],
       });
 
-      setSaveMessage({
-        type: "success",
-        text: "Roadmap saved successfully!",
-      });
-
       // Invalidate roadmaps query to show the new roadmap in real-time
       await queryClient.invalidateQueries({ queryKey: ["roadmaps"] });
 
-      // Clear message after 3 seconds
-      setTimeout(() => setSaveMessage(null), 3000);
+      toast.success("Roadmap saved successfully!");
     } catch (error) {
       console.error("Failed to save roadmap:", error);
-      setSaveMessage({
-        type: "error",
-        text: "Failed to save roadmap. Please try again.",
-      });
+      toast.error("Failed to save roadmap. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -391,81 +373,8 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Header */}
-      {/* <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              LearnBridge AI
-            </h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.push("/upload")}
-              className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-            >
-              New Upload
-            </button>
-            {user && (
-              <span className="text-sm text-slate-600 hidden md:block">
-                {user.firstName}
-              </span>
-            )}
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 cursor-pointer rounded-lg text-slate-600 hover:text-white hover:bg-red-500 text-sm font-medium transition-all"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header> */}
-
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* Save Message Notification */}
-        {saveMessage && (
-          <div
-            className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
-              saveMessage.type === "success"
-                ? "bg-green-50 border border-green-200 text-green-800"
-                : "bg-red-50 border border-red-200 text-red-800"
-            }`}
-          >
-            {saveMessage.type === "success" ? (
-              <svg
-                className="w-5 h-5 flex-shrink-0"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            ) : (
-              <svg
-                className="w-5 h-5 flex-shrink-0"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            )}
-            <span className="font-medium">{saveMessage.text}</span>
-          </div>
-        )}
-
         {/* Hero Section */}
         <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl p-8 md:p-12 text-white mb-8 shadow-xl shadow-blue-500/20">
           <div className="flex items-start justify-between gap-4 mb-6">
@@ -482,27 +391,17 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
                 </h1>
               </div>
             </div>
-            <button
+            {/* Secondary (not gradient) so it doesn't compete with the hero — DESIGN.md: one gradient moment per screen. */}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-shrink-0"
               onClick={handleSaveRoadmap}
-              disabled={isSaving}
-              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white rounded-xl transition-all font-medium text-sm flex-shrink-0"
+              loading={isSaving}
             >
-              {isSaving ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                  </svg>
-                  Save Roadmap
-                </>
-              )}
-            </button>
+              {!isSaving && <Save className="h-4 w-4" />}
+              {isSaving ? "Saving..." : "Save Roadmap"}
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -550,7 +449,7 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
         </div>
 
         {/* CTA Section */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 text-center">
+        <Card className="p-6 text-center">
           <h3 className="text-lg font-semibold text-slate-900 mb-2">
             Ready to start your journey?
           </h3>
@@ -558,20 +457,15 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
             Begin with the first step and track your progress as you go.
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
-            <button
-              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-500/25"
-            >
+            <Button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+              <ArrowUp className="h-4 w-4" />
               Start Learning Now
-            </button>
-            <button
-              onClick={() => router.push("/roadmaps")}
-              className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-all"
-            >
+            </Button>
+            <Button variant="secondary" onClick={() => router.push("/roadmaps")}>
               View All Roadmaps
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       </main>
     </div>
   );

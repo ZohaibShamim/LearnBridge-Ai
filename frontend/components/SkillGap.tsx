@@ -1,5 +1,8 @@
 // Shared "Skills You Have / Skills to Gain" panel (R1.6 extraction, R1.7 gap).
 // Green = skills present in the CV; amber = skills the target role still needs.
+import { CheckCircle2, Zap } from "lucide-react";
+import { Card, CardHeader, IconChip, Badge } from "@/components/ui";
+
 export function SkillGapSection({
   extractedSkills,
   missingSkills,
@@ -13,48 +16,56 @@ export function SkillGapSection({
   if (have.length === 0 && gap.length === 0) return null;
 
   return (
-    <div className="grid md:grid-cols-2 gap-4 mb-8">
+    <div className="grid gap-4 md:grid-cols-2 mb-8">
       {/* Skills you have */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center">
-            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h3 className="font-bold text-slate-900">Skills You Have <span className="text-slate-400 font-medium">({have.length})</span></h3>
-        </div>
+      <Card className="p-6">
+        <CardHeader className="mb-4 gap-2.5">
+          <IconChip className="h-9 w-9 rounded-lg bg-green-100 text-green-600">
+            <CheckCircle2 className="h-5 w-5" />
+          </IconChip>
+          <h3 className="font-bold text-slate-900">
+            Skills You Have{" "}
+            <span className="font-medium text-slate-400">({have.length})</span>
+          </h3>
+        </CardHeader>
         {have.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {have.map((s, i) => (
-              <span key={i} className="px-3 py-1 bg-green-50 text-green-700 text-sm font-medium rounded-full border border-green-100">{s}</span>
+              <Badge key={i} tone="success">
+                {s}
+              </Badge>
             ))}
           </div>
         ) : (
           <p className="text-sm text-slate-500">No skills detected from your CV.</p>
         )}
-      </div>
+      </Card>
 
       {/* Skills to gain */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center">
-            <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <h3 className="font-bold text-slate-900">Skills to Gain <span className="text-slate-400 font-medium">({gap.length})</span></h3>
-        </div>
+      <Card className="p-6">
+        <CardHeader className="mb-4 gap-2.5">
+          <IconChip className="h-9 w-9 rounded-lg bg-amber-100 text-amber-600">
+            <Zap className="h-5 w-5" />
+          </IconChip>
+          <h3 className="font-bold text-slate-900">
+            Skills to Gain{" "}
+            <span className="font-medium text-slate-400">({gap.length})</span>
+          </h3>
+        </CardHeader>
         {gap.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {gap.map((s, i) => (
-              <span key={i} className="px-3 py-1 bg-amber-50 text-amber-700 text-sm font-medium rounded-full border border-amber-100">{s}</span>
+              <Badge key={i} tone="warning">
+                {s}
+              </Badge>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-green-600 font-medium">You're all caught up for this role. 🎉</p>
+          <p className="text-sm font-medium text-green-600">
+            You&apos;re all caught up for this role. 🎉
+          </p>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

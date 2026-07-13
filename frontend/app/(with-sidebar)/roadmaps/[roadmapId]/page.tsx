@@ -12,6 +12,9 @@ import { getOrCreateSubtopicQuiz } from "@/config/services/quiz.service";
 import type { Difficulty } from "@/config/services/quiz.service";
 import { normalizeResources, RoadmapStep, Resource, Subtopic } from "@/config/services/cv.service";
 import { SkillGapSection } from "@/components/SkillGap";
+import { Button, Card, Badge, Progress, Skeleton } from "@/components/ui";
+import { ArrowLeft, ChevronDown, Check, Lock, Star, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Difficulty button styles as LITERAL strings — never interpolate Tailwind class names
 // (dynamically-built classes silently don't render; see frontend CLAUDE.md §6).
@@ -107,31 +110,23 @@ function StepCard({
           }`}
         >
           {isCompleted ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-            </svg>
+            <Check className="h-6 w-6" strokeWidth={3} />
           ) : (
             step.step_number || index + 1
           )}
         </div>
 
         <div className="flex-1 pb-8">
-          <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${isCompleted ? "border-green-200" : "border-slate-100"}`}>
+          <Card className={cn("overflow-hidden", isCompleted ? "border-green-200" : "border-slate-100")}>
             <div className="p-5 flex items-start justify-between gap-4 cursor-pointer hover:bg-slate-50/50" onClick={() => setIsExpanded(!isExpanded)}>
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <h3 className="font-bold text-slate-900">{step.title}</h3>
-                  {isCompleted && (
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">Completed</span>
-                  )}
+                  {isCompleted && <Badge tone="success">Completed</Badge>}
                 </div>
-                {step.duration && (
-                  <span className="inline-block px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">{step.duration}</span>
-                )}
+                {step.duration && <Badge tone="brand">{step.duration}</Badge>}
               </div>
-              <svg className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-              </svg>
+              <ChevronDown className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
             </div>
 
             {isExpanded && (
@@ -143,7 +138,7 @@ function StepCard({
                     <h4 className="font-semibold text-slate-900 mb-3 text-sm">Skills to Learn</h4>
                     <div className="flex flex-wrap gap-2">
                       {step.skills.map((skill, idx) => (
-                        <span key={idx} className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">{skill}</span>
+                        <Badge key={idx} tone="purple">{skill}</Badge>
                       ))}
                     </div>
                   </div>
@@ -176,7 +171,7 @@ function StepCard({
                 </button>
               </div>
             )}
-          </div>
+          </Card>
         </div>
       </div>
     </div>
@@ -209,7 +204,9 @@ function SubtopicRow({
           {sub.summary && <p className="text-slate-500 text-xs mt-0.5">{sub.summary}</p>}
         </div>
         {cleared && (
-          <span className="flex-shrink-0 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">✓ Cleared</span>
+          <Badge tone="success" className="flex-shrink-0" icon={<Check className="h-3 w-3" />}>
+            Cleared
+          </Badge>
         )}
       </div>
 
@@ -306,38 +303,32 @@ function SubtopicStepCard({
       <div className="flex gap-4">
         <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg z-10 ${nodeStyle}`}>
           {locked ? (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+            <Lock className="h-5 w-5" />
           ) : allCleared ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-            </svg>
+            <Check className="h-6 w-6" strokeWidth={3} />
           ) : (
             step.step_number || index + 1
           )}
         </div>
 
         <div className="flex-1 pb-8">
-          <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${allCleared ? "border-green-200" : locked ? "border-slate-200" : "border-slate-100"}`}>
+          <Card className={cn("overflow-hidden", allCleared ? "border-green-200" : locked ? "border-slate-200" : "border-slate-100")}>
             <div className="p-5 flex items-start justify-between gap-4 cursor-pointer hover:bg-slate-50/50" onClick={() => setIsExpanded(!isExpanded)}>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <h3 className={`font-bold ${locked ? "text-slate-400" : "text-slate-900"}`}>{step.title}</h3>
                   {badgeEarned && (
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">⭐ Badge</span>
+                    <Badge tone="warning" icon={<Star className="h-3 w-3 fill-current" />}>Badge</Badge>
                   )}
                   {locked && (
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs font-medium rounded-full">🔒 Locked</span>
+                    <Badge tone="neutral" icon={<Lock className="h-3 w-3" />}>Locked</Badge>
                   )}
                 </div>
-                <span className="inline-block px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">
+                <Badge tone="brand">
                   {clearedCount} / {subtopics.length} subtopics cleared
-                </span>
+                </Badge>
               </div>
-              <svg className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-              </svg>
+              <ChevronDown className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
             </div>
 
             {isExpanded && (
@@ -366,7 +357,7 @@ function SubtopicStepCard({
                 </div>
               </div>
             )}
-          </div>
+          </Card>
         </div>
       </div>
     </div>
@@ -379,15 +370,13 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-red-50 to-orange-50 flex items-center justify-center">
       <div className="text-center max-w-md mx-auto px-4">
         <div className="w-20 h-20 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-6">
-          <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
+          <AlertTriangle className="h-10 w-10 text-red-500" />
         </div>
         <h2 className="text-2xl font-bold text-slate-900 mb-3">Something went wrong</h2>
         <p className="text-slate-600 mb-6">{message}</p>
         <div className="flex gap-3 justify-center">
-          <button onClick={onRetry} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all">Try Again</button>
-          <button onClick={() => router.push("/roadmaps")} className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-xl transition-all">Back to Roadmaps</button>
+          <Button onClick={onRetry}>Try Again</Button>
+          <Button variant="secondary" onClick={() => router.push("/roadmaps")}>Back to Roadmaps</Button>
         </div>
       </div>
     </div>
@@ -398,15 +387,15 @@ function LoadingState() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="h-8 w-32 bg-slate-200 rounded animate-pulse mb-8" />
+        <Skeleton className="h-8 w-32 mb-8" />
         <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl p-8 md:p-12 mb-8">
-          <div className="h-10 w-64 bg-white/20 rounded animate-pulse mb-6" />
+          <Skeleton className="h-10 w-64 bg-white/20 mb-6" />
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {[...Array(3)].map((_, i) => (<div key={i} className="bg-white/10 rounded-xl p-4 h-20 animate-pulse" />))}
+            {[...Array(3)].map((_, i) => (<Skeleton key={i} className="h-20 rounded-xl bg-white/10" />))}
           </div>
         </div>
         <div className="space-y-4">
-          {[...Array(4)].map((_, i) => (<div key={i} className="bg-white rounded-2xl h-24 shadow-sm animate-pulse" />))}
+          {[...Array(4)].map((_, i) => (<Skeleton key={i} className="h-24 rounded-2xl" />))}
         </div>
       </div>
     </div>
@@ -509,9 +498,7 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
       <div className="bg-white/50 backdrop-blur-md border-b border-slate-200 sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-            </svg>
+            <ArrowLeft className="h-5 w-5" />
             <span className="font-medium">Back</span>
           </button>
           <h1 className="text-xl font-bold text-slate-900">{roadmap.jobTitle}</h1>
@@ -540,9 +527,7 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
               <span className="text-blue-100 text-sm font-medium">Your Progress</span>
               <span className="text-white font-bold">{progressLabel}</span>
             </div>
-            <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-green-400 to-emerald-400 transition-all duration-500" style={{ width: `${percentage}%` }} />
-            </div>
+            <Progress value={percentage} tone="success" className="h-3 bg-white/20" />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -567,22 +552,22 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
 
         {/* Badges strip (guided mode only) */}
         {hasSubtopics && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-8">
+          <Card className="p-5 mb-8">
             <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-              <span className="text-amber-500">⭐</span> Topic Badges
+              <Star className="h-5 w-5 fill-amber-400 text-amber-400" /> Topic Badges
             </h3>
             {badges.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {badges.map((b) => (
-                  <span key={b.stepIndex} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-sm font-medium rounded-full">
-                    ⭐ {b.title}
-                  </span>
+                  <Badge key={b.stepIndex} tone="warning" icon={<Star className="h-3 w-3 fill-current" />}>
+                    {b.title}
+                  </Badge>
                 ))}
               </div>
             ) : (
               <p className="text-slate-500 text-sm">Pass a <span className="font-medium text-rose-600">Hard</span> quiz on any subtopic to earn your first topic badge.</p>
             )}
-          </div>
+          </Card>
         )}
 
         {/* Skill extraction + gap */}
@@ -650,14 +635,14 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 text-center">
+          <Card className="p-6 text-center">
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Keep going!</h3>
             <p className="text-slate-600">
               {hasSubtopics
                 ? "Pass each subtopic's Medium quiz to clear it and unlock the next topic. Your progress shows on your dashboard."
                 : "Mark steps complete as you finish them — your progress shows up on your dashboard."}
             </p>
-          </div>
+          </Card>
         )}
       </main>
     </div>
