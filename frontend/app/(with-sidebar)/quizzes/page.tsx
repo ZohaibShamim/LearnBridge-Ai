@@ -3,16 +3,22 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Sparkles, Plus, GraduationCap, AlertTriangle } from "lucide-react";
 import { getAllQuizzes, generateQuiz, Quiz, QuizDifficulty } from "@/config/services/quiz.service";
 import { getRoadmaps } from "@/config/services/roadmap.service";
-
-// Literal-string class maps (never interpolate Tailwind class names — DESIGN.md).
-const difficultyBadge: Record<string, string> = {
-  easy: "bg-green-100 text-green-700",
-  medium: "bg-yellow-100 text-yellow-700",
-  hard: "bg-red-100 text-red-700",
-  mixed: "bg-blue-100 text-blue-700",
-};
+import {
+  Button,
+  Card,
+  Badge,
+  difficultyTone,
+  Skeleton,
+  EmptyState,
+  Modal,
+  ModalIcon,
+  ModalTitle,
+  ModalDescription,
+  Slider,
+} from "@/components/ui";
 
 const DEFAULT_TOPICS = [
   "JavaScript Fundamentals",
@@ -24,83 +30,75 @@ const DEFAULT_TOPICS = [
 ];
 
 function QuizCard({ quiz, onOpen }: { quiz: Quiz; onOpen: (id: string) => void }) {
-  const badge = difficultyBadge[quiz.difficulty] || difficultyBadge.mixed;
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-lg hover:border-blue-200 transition-all">
-      <div className="h-28 bg-gradient-to-br from-blue-500 to-indigo-600 relative overflow-hidden">
+    <Card interactive as="article" className="overflow-hidden">
+      <div className="relative h-28 overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600">
         <div className="absolute inset-0 opacity-10">
-          <svg className="w-full h-full" viewBox="0 0 400 160" fill="none">
+          <svg className="h-full w-full" viewBox="0 0 400 160" fill="none">
             <circle cx="50" cy="50" r="40" fill="white" />
             <circle cx="350" cy="120" r="60" fill="white" />
           </svg>
         </div>
         <div className="absolute inset-0 flex items-center justify-center">
-          <svg className="w-12 h-12 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="h-12 w-12 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
       </div>
 
       <div className="p-5">
-        <h3 className="text-lg font-semibold text-slate-900 mb-2 line-clamp-2">{quiz.title}</h3>
-        <p className="text-sm text-slate-600 mb-4 line-clamp-2">{quiz.description || quiz.topic}</p>
+        <h3 className="mb-2 line-clamp-2 text-lg font-semibold text-slate-900">{quiz.title}</h3>
+        <p className="mb-4 line-clamp-2 text-sm text-slate-600">{quiz.description || quiz.topic}</p>
 
-        <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
+        <div className="mb-4 grid grid-cols-3 gap-3">
           <div className="text-center">
-            <div className="text-slate-400 text-xs font-medium mb-1">Questions</div>
+            <div className="mb-1 text-xs font-medium text-slate-500">Questions</div>
             <div className="text-lg font-semibold text-slate-900">{quiz.totalQuestions}</div>
           </div>
           <div className="text-center">
-            <div className="text-slate-400 text-xs font-medium mb-1">Time</div>
+            <div className="mb-1 text-xs font-medium text-slate-500">Time</div>
             <div className="text-lg font-semibold text-slate-900">{quiz.estimatedTime}m</div>
           </div>
           <div className="text-center">
-            <div className="text-slate-400 text-xs font-medium mb-1">Level</div>
-            <div className="text-sm font-semibold text-slate-900 capitalize">{quiz.difficulty}</div>
+            <div className="mb-1 text-xs font-medium text-slate-500">Level</div>
+            <div className="text-sm font-semibold capitalize text-slate-900">{quiz.difficulty}</div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
-          {quiz.category && (
-            <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-100">
-              {quiz.category}
-            </span>
-          )}
-          <span className={`px-3 py-1 text-xs font-medium rounded-full ${badge}`}>
-            {quiz.difficulty.charAt(0).toUpperCase() + quiz.difficulty.slice(1)}
-          </span>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {quiz.category && <Badge tone="brand">{quiz.category}</Badge>}
+          <Badge tone={difficultyTone[quiz.difficulty] ?? "brand"} className="capitalize">
+            {quiz.difficulty}
+          </Badge>
         </div>
 
-        <button
-          onClick={() => onOpen(quiz._id)}
-          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
-        >
+        <Button variant="primary" className="w-full" onClick={() => onOpen(quiz._id)}>
           Start Quiz
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function QuizCardSkeleton() {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden animate-pulse">
-      <div className="h-28 bg-slate-200" />
-      <div className="p-5 space-y-3">
-        <div className="h-5 bg-slate-200 rounded w-3/4" />
-        <div className="h-4 bg-slate-200 rounded w-full" />
-        <div className="grid grid-cols-3 gap-3 my-4">
+    <Card className="overflow-hidden">
+      <Skeleton className="h-28 rounded-none" />
+      <div className="space-y-3 p-5">
+        <Skeleton className="h-5 w-3/4" />
+        <Skeleton className="h-4 w-full" />
+        <div className="my-4 grid grid-cols-3 gap-3">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-12 bg-slate-200 rounded" />
+            <Skeleton key={i} className="h-12" />
           ))}
         </div>
-        <div className="h-10 bg-slate-200 rounded-xl" />
+        <Skeleton className="h-11 rounded-xl" />
       </div>
-    </div>
+    </Card>
   );
 }
 
-// AI quiz generator modal — informational modal shell (blue icon circle), matching DESIGN.md.
+// AI quiz generator — informational Modal (brand icon circle), matching DESIGN.md.
 function GenerateQuizModal({
   isOpen,
   onClose,
@@ -118,8 +116,7 @@ function GenerateQuizModal({
   const [error, setError] = useState("");
 
   const mutation = useMutation({
-    mutationFn: () =>
-      generateQuiz({ topic: topic.trim(), difficulty, numQuestions }),
+    mutationFn: () => generateQuiz({ topic: topic.trim(), difficulty, numQuestions }),
     onSuccess: async (res) => {
       await queryClient.invalidateQueries({ queryKey: ["quizzes"] });
       router.push(`/quizzes/${res.data._id}`);
@@ -128,8 +125,6 @@ function GenerateQuizModal({
       setError(err?.response?.data?.message || "Failed to generate quiz. Please try again.");
     },
   });
-
-  if (!isOpen) return null;
 
   const handleGenerate = () => {
     if (!topic.trim()) {
@@ -140,116 +135,118 @@ function GenerateQuizModal({
     mutation.mutate();
   };
 
+  const selectClass =
+    "w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500";
+
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full animate-in fade-in zoom-in duration-300 max-h-[90vh] overflow-y-auto">
-        <div className="px-8 pt-8 pb-6 border-b border-slate-100">
-          <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mb-4">
-            <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">Generate an AI Quiz</h2>
-          <p className="text-slate-600 text-sm">Pick a topic and let AI build a knowledge check for you.</p>
-        </div>
-
-        <div className="px-8 py-6 space-y-5">
-          {/* Topic */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Topic</label>
-            <input
-              type="text"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. React Hooks, SQL Joins, Neural Networks"
-              className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-900"
-            />
-          </div>
-
-          {/* Suggestions */}
-          {suggestions.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">Suggestions from your roadmaps</p>
-              <div className="flex flex-wrap gap-2">
-                {suggestions.slice(0, 8).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setTopic(s)}
-                    className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-100 hover:bg-blue-100 transition-all"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Difficulty + count */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Difficulty</label>
-              <select
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value as QuizDifficulty)}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-900 bg-white"
-              >
-                <option value="mixed">Mixed</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Questions</label>
-              <select
-                value={numQuestions}
-                onChange={(e) => setNumQuestions(Number(e.target.value))}
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-900 bg-white"
-              >
-                {[3, 5, 8, 10, 15].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm flex items-center gap-2 border border-red-100">
-              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {error}
-            </div>
-          )}
-        </div>
-
-        <div className="px-8 py-6 bg-slate-50 rounded-b-3xl flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={mutation.isPending}
-            className="flex-1 px-6 py-3 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-medium rounded-xl transition-all"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleGenerate}
-            disabled={mutation.isPending}
-            className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
-          >
-            {mutation.isPending ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Generating...
-              </>
-            ) : (
-              "Generate Quiz"
-            )}
-          </button>
-        </div>
+    <Modal
+      open={isOpen}
+      onOpenChange={(o) => {
+        if (!o && !mutation.isPending) onClose();
+      }}
+      size="lg"
+      className="max-h-[90vh] overflow-y-auto"
+    >
+      <div className="px-8 pb-6 pt-8 text-center">
+        <ModalIcon tone="brand">
+          <Sparkles className="h-7 w-7" />
+        </ModalIcon>
+        <ModalTitle className="mt-4 text-2xl font-bold text-slate-900">Generate an AI Quiz</ModalTitle>
+        <ModalDescription className="mt-1 text-sm text-slate-600">
+          Pick a topic and let AI build a knowledge check for you.
+        </ModalDescription>
       </div>
-    </div>
+
+      <div className="space-y-5 border-t border-slate-100 px-8 py-6">
+        {/* Topic */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Topic</label>
+          <input
+            type="text"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="e.g. React Hooks, SQL Joins, Neural Networks"
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Suggestions */}
+        {suggestions.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-slate-500">Suggestions from your roadmaps</p>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.slice(0, 8).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setTopic(s)}
+                  className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Difficulty + count */}
+        <div className="space-y-5">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">Difficulty</label>
+            <select
+              value={difficulty}
+              onChange={(e) => setDifficulty(e.target.value as QuizDifficulty)}
+              className={selectClass}
+            >
+              <option value="mixed">Mixed</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-sm font-medium text-slate-700">Number of questions</label>
+              <span className="tabular rounded-lg bg-blue-50 px-2.5 py-0.5 text-sm font-semibold text-blue-700">
+                {numQuestions}
+              </span>
+            </div>
+            <Slider
+              value={numQuestions}
+              onValueChange={setNumQuestions}
+              min={3}
+              max={15}
+              step={1}
+              ariaLabel="Number of questions"
+            />
+            <div className="mt-1.5 flex justify-between text-xs text-slate-400">
+              <span>3</span>
+              <span>15</span>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-3 rounded-b-3xl bg-slate-50 px-8 py-6">
+        <Button variant="secondary" className="flex-1" disabled={mutation.isPending} onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          className="flex-1"
+          loading={mutation.isPending}
+          onClick={handleGenerate}
+        >
+          {mutation.isPending ? "Generating..." : "Generate Quiz"}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
@@ -289,61 +286,47 @@ export default function QuizzesPage() {
         suggestions={suggestions}
       />
 
-      <main className="max-w-7xl mx-auto px-4 py-12">
+      <main className="mx-auto max-w-7xl px-4 py-12">
         {/* Hero */}
-        <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+        <div className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-4xl font-bold text-slate-900 mb-3">Master Your Skills with Quizzes</h2>
-            <p className="text-lg text-slate-600 max-w-2xl">
+            <h2 className="mb-3 text-4xl font-bold text-slate-900">Master Your Skills with Quizzes</h2>
+            <p className="max-w-2xl text-lg text-slate-600">
               Test your knowledge, identify gaps, and improve with AI-generated quizzes tailored to your learning path.
             </p>
           </div>
-          <button
-            onClick={() => setShowGenerate(true)}
-            className="shrink-0 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-500/25"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
+          <Button variant="primary" className="shrink-0" onClick={() => setShowGenerate(true)}>
+            <Plus className="h-5 w-5" />
             Generate New Quiz
-          </button>
+          </Button>
         </div>
 
         {/* Grid */}
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (
               <QuizCardSkeleton key={i} />
             ))}
           </div>
         ) : isError ? (
-          <div className="bg-red-50 text-red-600 px-6 py-8 rounded-2xl text-center border border-red-100">
-            <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h3 className="font-semibold mb-1">Failed to load quizzes</h3>
-            <p className="text-sm">Please try again later</p>
-          </div>
+          <EmptyState
+            icon={<AlertTriangle className="h-7 w-7" />}
+            title="Failed to load quizzes"
+            description="Something went wrong. Please try again later."
+          />
         ) : quizzes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
-              <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">No Quizzes Yet</h3>
-            <p className="text-slate-600 text-center mb-6 max-w-sm">
-              Generate your first AI quiz to test your knowledge on any topic from your roadmap.
-            </p>
-            <button
-              onClick={() => setShowGenerate(true)}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-500/25"
-            >
-              Generate Your First Quiz
-            </button>
-          </div>
+          <EmptyState
+            icon={<GraduationCap className="h-7 w-7" />}
+            title="No quizzes yet"
+            description="Generate your first AI quiz to test your knowledge on any topic from your roadmap."
+            action={
+              <Button variant="primary" onClick={() => setShowGenerate(true)}>
+                Generate Your First Quiz
+              </Button>
+            }
+          />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {quizzes.map((quiz) => (
               <QuizCard key={quiz._id} quiz={quiz} onOpen={(id) => router.push(`/quizzes/${id}`)} />
             ))}
