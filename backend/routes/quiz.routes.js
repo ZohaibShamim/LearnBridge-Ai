@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   generateQuiz,
+  getOrCreateSubtopicQuiz,
   getQuizzes,
   getQuizById,
   submitQuiz,
@@ -15,6 +16,7 @@ const router = Router();
 router.use(verifyUser);
 
 router.post("/generate", generateQuiz);
+router.post("/subtopic", getOrCreateSubtopicQuiz);
 
 // Specific/literal paths must be declared before the ":quizId" param route,
 // otherwise "/attempts" would be captured as a quizId.
