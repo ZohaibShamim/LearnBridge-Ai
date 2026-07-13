@@ -13,7 +13,8 @@ const transporter = nodemailer.createTransport({
 
 export const otpEmailViaNodemailer = async (otp, email) => {
   const mailOption = {
-    from: "Learn Bridge AI <onboarding@resend.dev>",
+    // Gmail SMTP rewrites / spam-filters a From that isn't the authed account.
+    from: `Learn Bridge AI <${process.env.EMAIL_USER}>`,
     to: email,
     subject: "Email Verification OTP",
     html: `
@@ -44,7 +45,7 @@ export const otpEmailViaNodemailer = async (otp, email) => {
           </div>
         </div>
 
-        <p style="max-width:600px; margin:12px auto 0; font-size:12px; color:#9aa4b2; text-align:center;">Learn Bridge AI • onboarding@resend.dev</p>
+        <p style="max-width:600px; margin:12px auto 0; font-size:12px; color:#9aa4b2; text-align:center;">Learn Bridge AI</p>
       </div>
     `,
   };

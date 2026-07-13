@@ -2,7 +2,47 @@
 
 import { useSearchParams, useRouter, useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { CheckCircle2, Clock, Zap, AlertTriangle } from "lucide-react";
 import { getAttempt } from "@/config/services/quiz.service";
+import { Button, Card, Badge, Progress, StatTile, Spinner, EmptyState } from "@/components/ui";
+
+// Per-difficulty literal color map (never interpolated). Progress uses tone="success"
+// as the gradient base, then overrides the from-/to- stops via barClassName.
+const DIFF_ROWS = [
+  {
+    key: "easy",
+    label: "Easy",
+    stars: "⭐",
+    card: "bg-green-50 border-green-200",
+    head: "text-green-900",
+    text: "text-green-700",
+    num: "text-green-600",
+    track: "bg-green-100",
+    stops: "",
+  },
+  {
+    key: "medium",
+    label: "Medium",
+    stars: "⭐⭐",
+    card: "bg-yellow-50 border-yellow-200",
+    head: "text-yellow-900",
+    text: "text-yellow-700",
+    num: "text-yellow-600",
+    track: "bg-yellow-100",
+    stops: "from-yellow-400 to-yellow-500",
+  },
+  {
+    key: "hard",
+    label: "Hard",
+    stars: "⭐⭐⭐",
+    card: "bg-red-50 border-red-200",
+    head: "text-red-900",
+    text: "text-red-700",
+    num: "text-red-600",
+    track: "bg-red-100",
+    stops: "from-red-500 to-red-600",
+  },
+] as const;
 
 function GradeIndicator({ grade, percentage }: { grade: string; percentage: number }) {
   // Literal-class map per grade (DESIGN.md grade mapping: A green, B blue, C yellow, D orange, F red).
@@ -23,10 +63,10 @@ function GradeIndicator({ grade, percentage }: { grade: string; percentage: numb
     : "Try again to strengthen your knowledge";
 
   return (
-    <div className={`bg-gradient-to-br ${bg} rounded-3xl p-12 text-center text-white`}>
-      <div className="text-6xl font-bold mb-4">{grade}</div>
-      <div className="text-2xl font-semibold mb-2">{percentage.toFixed(1)}%</div>
-      <p className="text-white/80 text-lg">{message}</p>
+    <div className={`rounded-3xl bg-gradient-to-br ${bg} p-12 text-center text-white`}>
+      <div className="mb-4 text-6xl font-bold">{grade}</div>
+      <div className="mb-2 text-2xl font-semibold">{percentage.toFixed(1)}%</div>
+      <p className="text-lg text-white/80">{message}</p>
     </div>
   );
 }
@@ -48,26 +88,26 @@ export default function QuizResultsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-slate-600 font-medium">Loading results...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <Spinner page label="Loading results..." />
       </div>
     );
   }
 
   if (isError || !result) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 font-semibold mb-4">Results not found</p>
-          <button
-            onClick={() => router.push("/quizzes")}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
-          >
-            Back to Quizzes
-          </button>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
+        <div className="w-full max-w-md">
+          <EmptyState
+            icon={<AlertTriangle className="h-7 w-7" />}
+            title="Results not found"
+            description="We couldn't load these results. The attempt may have expired."
+            action={
+              <Button variant="primary" onClick={() => router.push("/quizzes")}>
+                Back to Quizzes
+              </Button>
+            }
+          />
         </div>
       </div>
     );
@@ -100,126 +140,96 @@ export default function QuizResultsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
-      <div className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md z-40 border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div className="fixed left-0 right-0 top-0 z-40 border-b border-slate-100 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
           <h2 className="font-semibold text-slate-900">Quiz Results</h2>
-          <button
-            onClick={() => router.push("/quizzes")}
-            className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-all"
-          >
+          <Button variant="ghost" size="sm" onClick={() => router.push("/quizzes")}>
             Back to Quizzes
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto mt-20 mb-12">
+      <div className="mx-auto mb-12 mt-20 max-w-4xl">
         {/* Main result card */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8">
+        <Card className="mb-8 p-6 sm:p-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">{quiz.title}</h1>
+            <h1 className="mb-2 text-3xl font-bold text-slate-900">{quiz.title}</h1>
             <p className="text-slate-600">Quiz completed successfully</p>
           </div>
 
           <GradeIndicator grade={result.grade} percentage={result.percentage} />
 
-          <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 border border-blue-200">
-              <div className="flex items-center gap-3 mb-3">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="font-semibold text-blue-900">Correct Answers</span>
-              </div>
-              <p className="text-3xl font-bold text-blue-600">{correctAnswers}</p>
-              <p className="text-sm text-blue-700 mt-1">out of {totalQuestions} questions</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6 border border-purple-200">
-              <div className="flex items-center gap-3 mb-3">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="font-semibold text-purple-900">Time Spent</span>
-              </div>
-              <p className="text-3xl font-bold text-purple-600">{formatTime(timeSpent)}</p>
-              <p className="text-sm text-purple-700 mt-1">estimated: {quiz.estimatedTime}m</p>
-            </div>
-
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-6 border border-orange-200">
-              <div className="flex items-center gap-3 mb-3">
-                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <span className="font-semibold text-orange-900">Accuracy</span>
-              </div>
-              <p className="text-3xl font-bold text-orange-600">{result.percentage.toFixed(1)}%</p>
-              <p className="text-sm text-orange-700 mt-1">performance score</p>
-            </div>
+          <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
+            <StatTile
+              chip="blue"
+              icon={<CheckCircle2 className="h-5 w-5" />}
+              label="Correct Answers"
+              value={correctAnswers}
+              hint={`out of ${totalQuestions} questions`}
+            />
+            <StatTile
+              chip="purple"
+              icon={<Clock className="h-5 w-5" />}
+              label="Time Spent"
+              value={formatTime(timeSpent)}
+              hint={`estimated: ${quiz.estimatedTime}m`}
+            />
+            <StatTile
+              chip="orange"
+              icon={<Zap className="h-5 w-5" />}
+              label="Accuracy"
+              value={`${result.percentage.toFixed(1)}%`}
+              hint="performance score"
+            />
           </div>
-        </div>
+        </Card>
 
         {/* Performance by difficulty */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8">
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">Performance by Difficulty</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="rounded-2xl p-6 bg-green-50 border border-green-200">
-              <h3 className="font-semibold text-green-900 mb-4 flex items-center gap-2"><span className="text-lg">⭐</span> Easy</h3>
-              <p className="text-sm text-green-700 font-medium mb-1">Correct: {difficultyStats.easy.correct}/{difficultyStats.easy.total}</p>
-              <div className="w-full h-2 bg-green-200 rounded-full overflow-hidden mb-3">
-                <div className="h-full bg-green-600" style={{ width: `${pct(difficultyStats.easy.correct, difficultyStats.easy.total)}%` }} />
-              </div>
-              <p className="text-2xl font-bold text-green-600">{pct(difficultyStats.easy.correct, difficultyStats.easy.total).toFixed(0)}%</p>
-            </div>
-
-            <div className="rounded-2xl p-6 bg-yellow-50 border border-yellow-200">
-              <h3 className="font-semibold text-yellow-900 mb-4 flex items-center gap-2"><span className="text-lg">⭐⭐</span> Medium</h3>
-              <p className="text-sm text-yellow-700 font-medium mb-1">Correct: {difficultyStats.medium.correct}/{difficultyStats.medium.total}</p>
-              <div className="w-full h-2 bg-yellow-200 rounded-full overflow-hidden mb-3">
-                <div className="h-full bg-yellow-600" style={{ width: `${pct(difficultyStats.medium.correct, difficultyStats.medium.total)}%` }} />
-              </div>
-              <p className="text-2xl font-bold text-yellow-600">{pct(difficultyStats.medium.correct, difficultyStats.medium.total).toFixed(0)}%</p>
-            </div>
-
-            <div className="rounded-2xl p-6 bg-red-50 border border-red-200">
-              <h3 className="font-semibold text-red-900 mb-4 flex items-center gap-2"><span className="text-lg">⭐⭐⭐</span> Hard</h3>
-              <p className="text-sm text-red-700 font-medium mb-1">Correct: {difficultyStats.hard.correct}/{difficultyStats.hard.total}</p>
-              <div className="w-full h-2 bg-red-200 rounded-full overflow-hidden mb-3">
-                <div className="h-full bg-red-600" style={{ width: `${pct(difficultyStats.hard.correct, difficultyStats.hard.total)}%` }} />
-              </div>
-              <p className="text-2xl font-bold text-red-600">{pct(difficultyStats.hard.correct, difficultyStats.hard.total).toFixed(0)}%</p>
-            </div>
+        <Card className="mb-8 p-6 sm:p-8">
+          <h2 className="mb-6 text-2xl font-bold text-slate-900">Performance by Difficulty</h2>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            {DIFF_ROWS.map((r) => {
+              const s = difficultyStats[r.key];
+              const p = pct(s.correct, s.total);
+              return (
+                <div key={r.key} className={`rounded-2xl border p-6 ${r.card}`}>
+                  <h3 className={`mb-4 flex items-center gap-2 font-semibold ${r.head}`}>
+                    <span className="text-lg">{r.stars}</span> {r.label}
+                  </h3>
+                  <p className={`mb-1 text-sm font-medium ${r.text}`}>
+                    Correct: {s.correct}/{s.total}
+                  </p>
+                  <Progress value={p} tone="success" className={`mb-3 ${r.track}`} barClassName={r.stops} />
+                  <p className={`text-2xl font-bold ${r.num}`}>{p.toFixed(0)}%</p>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        </Card>
 
         {/* Feedback */}
         {result.feedback && (
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8">
-            <h2 className="text-2xl font-bold text-slate-900 mb-4">Feedback</h2>
-            <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200 text-blue-900">
+          <Card className="mb-8 p-6 sm:p-8">
+            <h2 className="mb-4 text-2xl font-bold text-slate-900">Feedback</h2>
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 text-blue-900">
               <p className="leading-relaxed">{result.feedback}</p>
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <button
-            onClick={() => router.push("/quizzes")}
-            className="px-6 py-4 bg-slate-100 text-slate-700 rounded-2xl font-semibold hover:bg-slate-200 transition-all"
-          >
+        <div className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-2">
+          <Button variant="secondary" size="lg" onClick={() => router.push("/quizzes")}>
             Back to Quizzes
-          </button>
-          <button
-            onClick={() => router.push(`/quizzes/${quizId}`)}
-            className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-500/25"
-          >
+          </Button>
+          <Button variant="primary" size="lg" onClick={() => router.push(`/quizzes/${quizId}`)}>
             Retake Quiz
-          </button>
+          </Button>
         </div>
 
         {/* Answer review */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">Answer Review</h2>
+        <Card className="p-6 sm:p-8">
+          <h2 className="mb-6 text-2xl font-bold text-slate-900">Answer Review</h2>
           <div className="space-y-4">
             {quiz.questions.map((question, idx) => {
               const answer = result.answers[idx];
@@ -230,33 +240,33 @@ export default function QuizResultsPage() {
               return (
                 <div
                   key={idx}
-                  className={`rounded-2xl p-6 border-l-4 ${isCorrect ? "bg-green-50 border-l-green-600" : "bg-red-50 border-l-red-600"}`}
+                  className={`rounded-2xl border-l-4 p-6 ${isCorrect ? "border-l-green-600 bg-green-50" : "border-l-red-600 bg-red-50"}`}
                 >
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="mb-3 flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm text-slate-600 font-medium mb-1">Question {idx + 1}</p>
+                      <p className="mb-1 text-sm font-medium text-slate-600">Question {idx + 1}</p>
                       <h4 className="font-semibold text-slate-900">{question.question}</h4>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ml-4 ${isCorrect ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>
+                    <Badge tone={isCorrect ? "success" : "danger"} className="whitespace-nowrap">
                       {isCorrect ? "✓ Correct" : "✗ Incorrect"}
-                    </span>
+                    </Badge>
                   </div>
 
                   <div className="space-y-2 text-sm">
                     <div>
-                      <p className="text-slate-600 font-medium">Your answer:</p>
-                      <p className="text-slate-900 font-semibold">{userAnswer}</p>
+                      <p className="font-medium text-slate-600">Your answer:</p>
+                      <p className="font-semibold text-slate-900">{userAnswer}</p>
                     </div>
                     {!isCorrect && (
                       <div>
-                        <p className="text-slate-600 font-medium">Correct answer:</p>
-                        <p className="text-green-700 font-semibold">{correctAnswer}</p>
+                        <p className="font-medium text-slate-600">Correct answer:</p>
+                        <p className="font-semibold text-green-700">{correctAnswer}</p>
                       </div>
                     )}
                     {question.explanation && (
                       <div>
-                        <p className="text-slate-600 font-medium">Explanation:</p>
-                        <p className="text-slate-700 italic">{question.explanation}</p>
+                        <p className="font-medium text-slate-600">Explanation:</p>
+                        <p className="italic text-slate-700">{question.explanation}</p>
                       </div>
                     )}
                   </div>
@@ -264,7 +274,7 @@ export default function QuizResultsPage() {
               );
             })}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

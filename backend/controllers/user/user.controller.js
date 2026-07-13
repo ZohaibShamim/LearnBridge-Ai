@@ -99,11 +99,7 @@ export const registerUser = asyncHandler(async (req, res) => {
 export const loginUserStep1 = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  console.log("Login attempt for email:", email);
-
   const user = await User.findOne({ email });
-
-  console.log("User found:", user);
 
   if (!user) {
     return res.status(404).json(new ApiResponse(404, null, "User not found"));
@@ -122,9 +118,8 @@ export const loginUserStep1 = asyncHandler(async (req, res) => {
   user.otp_expiry = Date.now() + 3 * 60 * 1000; // 3 minutes
   await user.save({ validateBeforeSave: false });
 
-  // DEV: email sending disabled, uncomment for production
-  // await otpEmailViaNodemailer(otp, user.email);
-  console.log(`[DEV] OTP for ${user.email}: ${otp}`);
+  await otpEmailViaNodemailer(otp, user.email);
+  console.log(`OTP sent to ${user.email}`);
 
   // temporary session token for OTP verification
   const sessionToken = jwt.sign(
@@ -176,9 +171,8 @@ export const resendOtp = asyncHandler(async (req, res) => {
   user.otp_expiry = Date.now() + 3 * 60 * 1000; // 3 minutes
   await user.save({ validateBeforeSave: false });
 
-  // DEV: email sending disabled, uncomment for production
-  // await otpEmailViaNodemailer(otp, user.email);
-  console.log(`[DEV] OTP for ${user.email}: ${otp}`);
+  await otpEmailViaNodemailer(otp, user.email);
+  console.log(`OTP sent to ${user.email}`);
 
   return res
     .status(200)
