@@ -173,7 +173,10 @@ export default function DashboardPage() {
                           </div>
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-sm text-slate-600">{item.progress}% Complete</span>
-                            <span className="text-xs text-slate-500">{item.completedCount}/{item.totalSteps} steps</span>
+                            <span className="text-xs text-slate-500">
+                              {item.completedCount}/{item.total ?? item.totalSteps} {item.unit || "steps"}
+                              {item.badges ? ` · ${item.badges} ⭐` : ""}
+                            </span>
                           </div>
                           <div className="w-full bg-slate-200 rounded-full h-2">
                             <div

@@ -213,6 +213,29 @@ function SubtopicRow({
         )}
       </div>
 
+      {/* Scraped learning resources for this subtopic */}
+      {(() => {
+        const res = normalizeResources(sub.resources);
+        return res.length > 0 ? (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {res.map((r, i) => {
+              const yt = r.type === "youtube" || r.url?.includes("youtu");
+              return (
+                <a
+                  key={i}
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${yt ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100" : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"}`}
+                >
+                  {yt ? "▶ Watch" : "📄 Read"}
+                </a>
+              );
+            })}
+          </div>
+        ) : null;
+      })()}
+
       <div className="flex flex-wrap gap-2 mt-3">
         {DIFFICULTIES.map((d) => {
           const key = `${stepIndex}:${sub._id}:${d}`;

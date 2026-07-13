@@ -18,7 +18,9 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.getenv("GROQ_MODEL") or "llama-3.3-70b-versatile"  # Free, fast model
 
-# OpenAI Configuration (for future use)
+# OpenAI Configuration (primary provider)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-OPENAI_MODEL = "gpt-3.5-turbo"
+# gpt-4o-mini: strong at structured-JSON generation (roadmaps/quizzes) at low cost.
+# Override with OPENAI_MODEL=gpt-4o for higher-quality roadmaps.
+OPENAI_MODEL = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"

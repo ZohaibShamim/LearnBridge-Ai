@@ -5,6 +5,8 @@ import mongoose from "mongoose";
 const subtopicSchema = new mongoose.Schema({
   title: { type: String, required: true },
   summary: { type: String },
+  // Scraped per-subtopic learning resources ({ youtube_video, article }), like steps.
+  resources: { type: Object },
 });
 
 const stepSchema = new mongoose.Schema(
