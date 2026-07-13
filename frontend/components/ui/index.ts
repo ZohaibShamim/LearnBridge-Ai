@@ -12,4 +12,5 @@ export { Spinner } from "./spinner";
 export { Modal, ModalIcon, ModalTitle, ModalDescription, ModalClose } from "./modal";
 export { Tooltip, TooltipProvider } from "./tooltip";
 export { Drawer } from "./drawer";
+export { Slider } from "./slider";
 export { Toaster, toast } from "./toast";
