@@ -13,10 +13,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Restore collapse preference after mount (avoids hydration mismatch).
+  // Restore collapse preference after mount. Reading localStorage during render
+  // would desync SSR/client, so this must run in an effect.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const toggleCollapse = () =>
     setCollapsed((c) => {

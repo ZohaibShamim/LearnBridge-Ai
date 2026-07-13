@@ -201,7 +201,8 @@ export default function LoginPage() {
     }
   }, [otpDialogOpen, timer]);
 
-  // Timer expiration
+  // Timer expiration — reset OTP state when the countdown hits zero.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (otpDialogOpen && timer === 0) {
       toast.error("OTP expired. Please request a new one.");
@@ -210,6 +211,7 @@ export default function LoginPage() {
       setSessionToken("");
     }
   }, [timer, otpDialogOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Login Step 1
   const loginMutation = useMutation({

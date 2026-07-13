@@ -17,12 +17,14 @@ export default function AccountSettingsPage() {
   const [saving, setSaving] = useState(false);
 
   // Seed from zustand once the persisted user rehydrates (may be null first paint).
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!user) return;
     setFirstName(user.firstName ?? "");
     setLastName(user.lastName ?? "");
     setEmail(user.email ?? "");
   }, [user]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const initial =
     firstName.charAt(0).toUpperCase() ||

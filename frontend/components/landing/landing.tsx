@@ -117,7 +117,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto mb-14 max-w-2xl text-center">
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Everything you need to level up</h2>
-            <p className="mt-3 text-slate-600">A personalized system that answers "how far am I" and "what's next" on every screen.</p>
+            <p className="mt-3 text-slate-600">{`A personalized system that answers "how far am I" and "what's next" on every screen.`}</p>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((f) => {
