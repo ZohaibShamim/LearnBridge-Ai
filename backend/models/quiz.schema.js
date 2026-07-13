@@ -36,6 +36,10 @@ const quizSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Roadmap",
     },
+    // Set only for roadmap subtopic quizzes. Together with roadmapId+difficulty these form the
+    // lazy-generation cache key so a given (user, roadmap, step, subtopic, difficulty) reuses one quiz.
+    stepIndex: { type: Number },
+    subtopicId: { type: String },
     title: { type: String, required: true },
     description: { type: String },
     category: { type: String },

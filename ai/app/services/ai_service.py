@@ -141,11 +141,11 @@ def _call_groq(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
             }
         ],
         "temperature": 0.4,
-        "max_tokens": 2000
+        "max_tokens": 4000
     }
-    
+
     try:
-        response = requests.post(GROQ_URL, headers=headers, json=payload, timeout=30)
+        response = requests.post(GROQ_URL, headers=headers, json=payload, timeout=60)
         response.raise_for_status()
     except requests.exceptions.HTTPError as e:
         error_msg = f"Groq API error: {e}"

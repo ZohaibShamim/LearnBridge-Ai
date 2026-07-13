@@ -1,6 +1,18 @@
 import api from "../instance/api";
 import { Roadmap, ApiResponse } from "./cv.service";
 
+export interface ClearedSubtopic {
+  stepIndex: number;
+  subtopicId: string;
+  difficulty: "medium" | "hard";
+}
+
+export interface Badge {
+  stepIndex: number;
+  title: string;
+  earnedAt: string;
+}
+
 export interface SavedRoadmap {
   _id: string;
   userId: string;
@@ -12,6 +24,8 @@ export interface SavedRoadmap {
   extractedSkills?: string[];
   missingSkills?: string[];
   completedSteps?: number[]; // 0-based indices of completed steps
+  clearedSubtopics?: ClearedSubtopic[]; // quiz-driven progress
+  badges?: Badge[]; // one per topic, earned on a hard pass
   createdAt: string;
   updatedAt: string;
 }

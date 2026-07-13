@@ -8,8 +8,20 @@ import {
   updateRoadmapProgress,
   SavedRoadmap,
 } from "@/config/services/roadmap.service";
-import { normalizeResources, RoadmapStep, Resource } from "@/config/services/cv.service";
+import { getOrCreateSubtopicQuiz } from "@/config/services/quiz.service";
+import type { Difficulty } from "@/config/services/quiz.service";
+import { normalizeResources, RoadmapStep, Resource, Subtopic } from "@/config/services/cv.service";
 import { SkillGapSection } from "@/components/SkillGap";
+
+// Difficulty button styles as LITERAL strings — never interpolate Tailwind class names
+// (dynamically-built classes silently don't render; see frontend CLAUDE.md §6).
+const DIFF_STYLES: Record<Difficulty, string> = {
+  easy: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
+  medium: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
+  hard: "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100",
+};
+
+const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 
 // Resource card component
 function ResourceCard({ resource }: { resource: Resource }) {
@@ -60,7 +72,8 @@ function ResourceCard({ resource }: { resource: Resource }) {
   );
 }
 
-// Step card — now completion-aware (green node + Mark Complete toggle)
+// --- FLAT (legacy) step card: for roadmaps saved before subtopics existed -------------
+// Completion-aware (green node + Mark Complete toggle).
 function StepCard({
   step,
   index,
@@ -86,7 +99,6 @@ function StepCard({
       )}
 
       <div className="flex gap-4">
-        {/* Step number / completed check */}
         <div
           className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg z-10 ${
             isCompleted
@@ -148,7 +160,6 @@ function StepCard({
                   </div>
                 )}
 
-                {/* Completion toggle */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -163,6 +174,173 @@ function StepCard({
                 >
                   {isCompleted ? "✓ Completed — mark as incomplete" : "Mark this step complete"}
                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- GUIDED subtopic row: three difficulty launchers + cleared state ------------------
+function SubtopicRow({
+  sub,
+  stepIndex,
+  cleared,
+  locked,
+  badgeEarned,
+  onStart,
+  pendingKey,
+}: {
+  sub: Subtopic;
+  stepIndex: number;
+  cleared: boolean;
+  locked: boolean;
+  badgeEarned: boolean;
+  onStart: (stepIndex: number, subtopicId: string, difficulty: Difficulty) => void;
+  pendingKey: string | null;
+}) {
+  return (
+    <div className={`rounded-xl border p-4 transition-all ${cleared ? "border-green-200 bg-green-50/40" : "border-slate-100 bg-slate-50/40"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-medium text-slate-900 text-sm">{sub.title}</p>
+          {sub.summary && <p className="text-slate-500 text-xs mt-0.5">{sub.summary}</p>}
+        </div>
+        {cleared && (
+          <span className="flex-shrink-0 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">✓ Cleared</span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mt-3">
+        {DIFFICULTIES.map((d) => {
+          const key = `${stepIndex}:${sub._id}:${d}`;
+          const isPending = pendingKey === key;
+          return (
+            <button
+              key={d}
+              disabled={locked || isPending}
+              onClick={() => onStart(stepIndex, sub._id, d)}
+              aria-label={`Start ${d} quiz for ${sub.title}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border capitalize transition-all disabled:opacity-50 disabled:cursor-not-allowed ${DIFF_STYLES[d]}`}
+            >
+              {isPending ? "Loading…" : d}
+              {d === "hard" ? " ⭐" : ""}
+            </button>
+          );
+        })}
+      </div>
+
+      {!locked && (
+        <p className="text-[11px] text-slate-400 mt-2">
+          Pass Medium (60%+) to clear · {badgeEarned ? "Hard badge earned ⭐" : "Pass Hard to earn the topic badge ⭐"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// --- GUIDED topic card: subtopics + lock + badge ------------------------------------
+function SubtopicStepCard({
+  step,
+  index,
+  isLast,
+  locked,
+  prevTitle,
+  clearedSet,
+  badgeEarned,
+  onStart,
+  pendingKey,
+}: {
+  step: RoadmapStep;
+  index: number;
+  isLast: boolean;
+  locked: boolean;
+  prevTitle: string;
+  clearedSet: Set<string>;
+  badgeEarned: boolean;
+  onStart: (stepIndex: number, subtopicId: string, difficulty: Difficulty) => void;
+  pendingKey: string | null;
+}) {
+  const subtopics = step.subtopics || [];
+  const clearedCount = subtopics.filter((s) => clearedSet.has(`${index}:${s._id}`)).length;
+  const allCleared = subtopics.length > 0 && clearedCount === subtopics.length;
+  const [isExpanded, setIsExpanded] = useState(index === 0);
+
+  const nodeStyle = locked
+    ? "bg-gradient-to-br from-slate-300 to-slate-400 shadow-slate-300/30"
+    : allCleared
+      ? "bg-gradient-to-br from-green-500 to-emerald-600 shadow-green-500/30"
+      : "bg-gradient-to-br from-blue-600 to-indigo-600 shadow-blue-500/30";
+
+  return (
+    <div className="relative">
+      {!isLast && (
+        <div className={`absolute left-6 top-16 bottom-0 w-0.5 ${allCleared ? "bg-green-400" : "bg-gradient-to-b from-blue-300 to-indigo-300"}`} />
+      )}
+
+      <div className="flex gap-4">
+        <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg z-10 ${nodeStyle}`}>
+          {locked ? (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          ) : allCleared ? (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+            </svg>
+          ) : (
+            step.step_number || index + 1
+          )}
+        </div>
+
+        <div className="flex-1 pb-8">
+          <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${allCleared ? "border-green-200" : locked ? "border-slate-200" : "border-slate-100"}`}>
+            <div className="p-5 flex items-start justify-between gap-4 cursor-pointer hover:bg-slate-50/50" onClick={() => setIsExpanded(!isExpanded)}>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <h3 className={`font-bold ${locked ? "text-slate-400" : "text-slate-900"}`}>{step.title}</h3>
+                  {badgeEarned && (
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">⭐ Badge</span>
+                  )}
+                  {locked && (
+                    <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs font-medium rounded-full">🔒 Locked</span>
+                  )}
+                </div>
+                <span className="inline-block px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">
+                  {clearedCount} / {subtopics.length} subtopics cleared
+                </span>
+              </div>
+              <svg className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+
+            {isExpanded && (
+              <div className="px-5 pb-5 space-y-3">
+                {step.description && <p className="text-slate-600 text-sm">{step.description}</p>}
+
+                {locked && (
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm text-slate-500">
+                    🔒 Complete <span className="font-medium text-slate-700">{prevTitle}</span> to unlock this topic.
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {subtopics.map((sub) => (
+                    <SubtopicRow
+                      key={sub._id}
+                      sub={sub}
+                      stepIndex={index}
+                      cleared={clearedSet.has(`${index}:${sub._id}`)}
+                      locked={locked}
+                      badgeEarned={badgeEarned}
+                      onStart={onStart}
+                      pendingKey={pendingKey}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -212,7 +390,7 @@ function LoadingState() {
   );
 }
 
-// Content with completion state (mounts only once data is present)
+// Content — branches between the guided (subtopic) view and the legacy flat view.
 function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -220,21 +398,59 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
   const steps = roadmapData.steps || [];
   const totalSteps = steps.length;
 
+  const hasSubtopics = steps.some((s) => s.subtopics && s.subtopics.length > 0);
+
+  // --- guided (subtopic) state ---
+  const clearedSet = new Set(
+    (roadmap.clearedSubtopics || []).map((c) => `${c.stepIndex}:${c.subtopicId}`)
+  );
+  const badgedSteps = new Set((roadmap.badges || []).map((b) => b.stepIndex));
+  const totalSubtopics = steps.reduce((sum, s) => sum + (s.subtopics?.length || 0), 0);
+  const clearedCount = (roadmap.clearedSubtopics || []).length;
+  const subtopicPercentage = totalSubtopics > 0 ? Math.round((clearedCount / totalSubtopics) * 100) : 0;
+
+  const topicUnlocked = (index: number): boolean => {
+    if (index <= 0) return true;
+    const prev = steps[index - 1];
+    if (!prev || !prev.subtopics || prev.subtopics.length === 0) return true;
+    return prev.subtopics.every((sub) => clearedSet.has(`${index - 1}:${sub._id}`));
+  };
+
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const startQuiz = useMutation({
+    mutationFn: (v: { stepIndex: number; subtopicId: string; difficulty: Difficulty }) =>
+      getOrCreateSubtopicQuiz({ roadmapId: roadmap._id, ...v }),
+    onMutate: () => setLaunchError(null),
+    onSuccess: (res) => {
+      if (res?.data?._id) router.push(`/quizzes/${res.data._id}`);
+    },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Couldn't start the quiz. Please try again.";
+      setLaunchError(msg);
+    },
+  });
+  const pendingKey =
+    startQuiz.isPending && startQuiz.variables
+      ? `${startQuiz.variables.stepIndex}:${startQuiz.variables.subtopicId}:${startQuiz.variables.difficulty}`
+      : null;
+  const handleStart = (stepIndex: number, subtopicId: string, difficulty: Difficulty) =>
+    startQuiz.mutate({ stepIndex, subtopicId, difficulty });
+
+  // --- legacy flat state ---
   const [completed, setCompleted] = useState<Set<number>>(
     () => new Set((roadmap.completedSteps || []).filter((i) => i >= 0 && i < totalSteps))
   );
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
-
-  const mutation = useMutation({
+  const flatMutation = useMutation({
     mutationFn: ({ stepIndex, value }: { stepIndex: number; value: boolean }) =>
       updateRoadmapProgress(roadmap._id, stepIndex, value),
     onSettled: () => {
       setPendingIndex(null);
-      // Keep the dashboard in sync when the user navigates back to it.
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (_err, variables) => {
-      // Revert optimistic change on failure.
       setCompleted((prev) => {
         const next = new Set(prev);
         if (variables.value) next.delete(variables.stepIndex);
@@ -243,7 +459,6 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
       });
     },
   });
-
   const handleToggle = (index: number, value: boolean) => {
     setPendingIndex(index);
     setCompleted((prev) => {
@@ -252,11 +467,18 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
       else next.delete(index);
       return next;
     });
-    mutation.mutate({ stepIndex: index, value });
+    flatMutation.mutate({ stepIndex: index, value });
   };
 
-  const completedCount = completed.size;
-  const percentage = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
+  // --- shared progress numbers (branch on mode) ---
+  const percentage = hasSubtopics
+    ? subtopicPercentage
+    : totalSteps > 0 ? Math.round((completed.size / totalSteps) * 100) : 0;
+  const progressLabel = hasSubtopics
+    ? `${clearedCount} of ${totalSubtopics} subtopics · ${percentage}%`
+    : `${completed.size} of ${totalSteps} steps · ${percentage}%`;
+
+  const badges = roadmap.badges || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -293,7 +515,7 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 mb-4">
             <div className="flex justify-between items-center mb-2">
               <span className="text-blue-100 text-sm font-medium">Your Progress</span>
-              <span className="text-white font-bold">{completedCount} of {totalSteps} steps · {percentage}%</span>
+              <span className="text-white font-bold">{progressLabel}</span>
             </div>
             <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-green-400 to-emerald-400 transition-all duration-500" style={{ width: `${percentage}%` }} />
@@ -320,8 +542,35 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
           </div>
         </div>
 
+        {/* Badges strip (guided mode only) */}
+        {hasSubtopics && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-8">
+            <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <span className="text-amber-500">⭐</span> Topic Badges
+            </h3>
+            {badges.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {badges.map((b) => (
+                  <span key={b.stepIndex} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-sm font-medium rounded-full">
+                    ⭐ {b.title}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-500 text-sm">Pass a <span className="font-medium text-rose-600">Hard</span> quiz on any subtopic to earn your first topic badge.</p>
+            )}
+          </div>
+        )}
+
         {/* Skill extraction + gap */}
         <SkillGapSection extractedSkills={roadmap.extractedSkills} missingSkills={roadmap.missingSkills} />
+
+        {/* Launch error */}
+        {launchError && (
+          <div className="mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
+            {launchError}
+          </div>
+        )}
 
         {/* Steps */}
         <div className="mb-8">
@@ -333,17 +582,32 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
           </h2>
 
           <div className="space-y-0">
-            {steps.map((step, index) => (
-              <StepCard
-                key={index}
-                step={step}
-                index={index}
-                isLast={index === steps.length - 1}
-                isCompleted={completed.has(index)}
-                onToggle={handleToggle}
-                isPending={pendingIndex === index}
-              />
-            ))}
+            {steps.map((step, index) =>
+              hasSubtopics ? (
+                <SubtopicStepCard
+                  key={index}
+                  step={step}
+                  index={index}
+                  isLast={index === steps.length - 1}
+                  locked={!topicUnlocked(index)}
+                  prevTitle={steps[index - 1]?.title || "the previous topic"}
+                  clearedSet={clearedSet}
+                  badgeEarned={badgedSteps.has(index)}
+                  onStart={handleStart}
+                  pendingKey={pendingKey}
+                />
+              ) : (
+                <StepCard
+                  key={index}
+                  step={step}
+                  index={index}
+                  isLast={index === steps.length - 1}
+                  isCompleted={completed.has(index)}
+                  onToggle={handleToggle}
+                  isPending={pendingIndex === index}
+                />
+              )
+            )}
           </div>
         </div>
 
@@ -351,15 +615,25 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
         {totalSteps > 0 && percentage === 100 ? (
           <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-8 text-center text-white shadow-lg shadow-green-500/20">
             <h3 className="text-2xl font-bold mb-2">🎉 Roadmap Complete!</h3>
-            <p className="text-green-50">You've completed every step. Time to put your skills to the test with a quiz.</p>
-            <button onClick={() => router.push("/quizzes")} className="mt-4 px-6 py-3 bg-white text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-all">
-              Take a Quiz
-            </button>
+            <p className="text-green-50">
+              {hasSubtopics
+                ? "You've cleared every subtopic. Chase the Hard badges you haven't earned yet!"
+                : "You've completed every step. Time to put your skills to the test with a quiz."}
+            </p>
+            {!hasSubtopics && (
+              <button onClick={() => router.push("/quizzes")} className="mt-4 px-6 py-3 bg-white text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-all">
+                Take a Quiz
+              </button>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 text-center">
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Keep going!</h3>
-            <p className="text-slate-600">Mark steps complete as you finish them — your progress shows up on your dashboard.</p>
+            <p className="text-slate-600">
+              {hasSubtopics
+                ? "Pass each subtopic's Medium quiz to clear it and unlock the next topic. Your progress shows on your dashboard."
+                : "Mark steps complete as you finish them — your progress shows up on your dashboard."}
+            </p>
           </div>
         )}
       </main>
@@ -371,6 +645,8 @@ function RoadmapDisplay({ roadmapId }: { roadmapId: string }) {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["roadmap", roadmapId],
     queryFn: () => getRoadmapById(roadmapId),
+    // Refetch when the user returns from taking a quiz so progress/badges update.
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading) return <LoadingState />;

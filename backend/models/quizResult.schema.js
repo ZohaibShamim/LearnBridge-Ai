@@ -27,6 +27,13 @@ const quizResultSchema = new mongoose.Schema(
     total: { type: Number, required: true }, // total questions
     percentage: { type: Number, required: true },
     grade: { type: String, required: true }, // A | B | C | D | F
+    passed: { type: Boolean, default: false }, // percentage >= PASS_THRESHOLD
+    difficulty: { type: String, enum: ["easy", "medium", "hard", "mixed"] },
+    // Roadmap linkage copied from the quiz at submit time, so progress/badges are queryable from results.
+    roadmapId: { type: mongoose.Schema.Types.ObjectId, ref: "Roadmap" },
+    stepIndex: { type: Number },
+    subtopicId: { type: String },
+    badgeAwarded: { type: Boolean, default: false },
     timeSpent: { type: Number, default: 0 }, // seconds, client-reported (not trusted)
     feedback: { type: String },
   },

@@ -21,12 +21,19 @@ export interface StepResources {
   article?: string | null;
 }
 
+export interface Subtopic {
+  _id: string;
+  title: string;
+  summary?: string;
+}
+
 export interface RoadmapStep {
   step_number: number;
   title: string;
   description: string;
   duration?: string;
   skills?: string[];
+  subtopics?: Subtopic[];
   resources?: Resource[] | StepResources;  // Can be either format
 }
 

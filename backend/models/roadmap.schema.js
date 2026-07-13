@@ -1,5 +1,12 @@
 import mongoose from "mongoose";
 
+// Subtopics KEEP their _id — it is the stable key that links a subtopic to its
+// generated quizzes and to clearedSubtopics/badges progress records.
+const subtopicSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  summary: { type: String },
+});
+
 const stepSchema = new mongoose.Schema(
   {
     month: {
@@ -21,6 +28,7 @@ const stepSchema = new mongoose.Schema(
     resources: {
       type: Object,
     },
+    subtopics: [subtopicSchema],
   },
   { _id: false }
 );
@@ -58,6 +66,24 @@ const roadmapSchema = new mongoose.Schema({
   completedSteps: [
     {
       type: Number,
+    },
+  ],
+
+  // Quiz-driven progress: a subtopic is "cleared" when its medium or hard quiz is passed.
+  clearedSubtopics: [
+    {
+      stepIndex: { type: Number, required: true },
+      subtopicId: { type: String, required: true },
+      difficulty: { type: String, enum: ["medium", "hard"], required: true },
+    },
+  ],
+
+  // One badge per topic, awarded the first time a HARD subtopic quiz in that topic is passed.
+  badges: [
+    {
+      stepIndex: { type: Number, required: true },
+      title: { type: String, required: true },
+      earnedAt: { type: Date, default: Date.now },
     },
   ],
 
