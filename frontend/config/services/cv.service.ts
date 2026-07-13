@@ -25,6 +25,7 @@ export interface Subtopic {
   _id: string;
   title: string;
   summary?: string;
+  resources?: Resource[] | StepResources; // scraped per-subtopic (youtube + article)
 }
 
 export interface RoadmapStep {

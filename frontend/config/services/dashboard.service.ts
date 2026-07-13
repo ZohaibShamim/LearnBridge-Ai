@@ -15,8 +15,11 @@ export interface DashboardRoadmap {
   jobTitle: string;
   careerGoal: string;
   totalSteps: number;
+  total: number; // subtopics count for guided roadmaps, else steps
+  unit: string; // "subtopics" | "steps"
   completedCount: number;
   progress: number;
+  badges?: number;
   tags: string[];
 }
 
