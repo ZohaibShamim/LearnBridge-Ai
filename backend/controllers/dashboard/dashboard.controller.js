@@ -2,6 +2,7 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { ApiResponse } from "../../utils/apiResponse.js";
 import { Roadmap } from "../../models/roadmap.schema.js";
 import { QuizResult } from "../../models/quizResult.schema.js";
+import { totalSubtopics, progressPercent } from "../../utils/learning.js";
 
 // GET /api/v1/dashboard
 // Aggregates real progress + quiz data for the signed-in user (R1.11). No mock data.
@@ -18,22 +19,38 @@ export const getDashboard = asyncHandler(async (req, res) => {
     QuizResult.find({ userId }).sort({ createdAt: -1 }),
   ]);
 
-  // Per-roadmap progress (derive %; guard empty and stale indices).
+  // Per-roadmap progress. Roadmaps with subtopics are QUIZ-DRIVEN: progress derives from
+  // cleared subtopics (passing a Medium/Hard quiz), not the manual step-complete toggle.
+  // Legacy/flat roadmaps (no subtopics) fall back to completedSteps.
   const currentLearning = roadmaps.map((r) => {
     const totalSteps = r.roadmap?.steps?.length || 0;
-    // Only count completed indices that are still in range.
-    const completedCount = (r.completedSteps || []).filter(
-      (i) => i >= 0 && i < totalSteps
-    ).length;
-    const progress =
-      totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
+    const subCount = totalSubtopics(r);
+
+    let total, completedCount, progress, unit;
+    if (subCount > 0) {
+      total = subCount;
+      completedCount = (r.clearedSubtopics || []).length;
+      progress = progressPercent(r);
+      unit = "subtopics";
+    } else {
+      total = totalSteps;
+      completedCount = (r.completedSteps || []).filter(
+        (i) => i >= 0 && i < totalSteps
+      ).length;
+      progress = totalSteps > 0 ? Math.round((completedCount / totalSteps) * 100) : 0;
+      unit = "steps";
+    }
+
     return {
       _id: r._id,
       jobTitle: r.jobTitle,
       careerGoal: r.roadmap?.career_goal || "",
       totalSteps,
+      total,
+      unit,
       completedCount,
       progress,
+      badges: (r.badges || []).length,
       tags: r.tags || [],
     };
   });
