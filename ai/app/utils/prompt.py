@@ -36,7 +36,10 @@ Return ONLY a valid JSON object with this exact structure:
       "month": 1,
       "title": "Step title",
       "description": "Detailed description of what to do this month, referencing their existing skills where relevant",
-      "skills": ["skill1", "skill2", "skill3"]
+      "skills": ["skill1", "skill2", "skill3"],
+      "subtopics": [
+        {{ "title": "A focused sub-skill within this month", "summary": "One sentence on what the learner studies here" }}
+      ]
     }}
   ]
 }}
@@ -44,6 +47,8 @@ Return ONLY a valid JSON object with this exact structure:
 Rules:
 - Generate exactly 12 steps (one per month).
 - Each step should have 3-5 skills.
+- Each step must have 2 to 4 subtopics that break the month's title into concrete, quizzable sub-skills.
+- Each subtopic needs a short "title" and a one-sentence "summary". Subtopics must be specific enough to write a focused quiz on.
 - Earlier months should leverage existing skills from the CV.
 - Later months should focus on advanced and specialized skills.
 - Do not include any markdown formatting, code blocks, or explanatory text.
