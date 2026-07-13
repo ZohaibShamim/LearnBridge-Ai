@@ -163,8 +163,13 @@ def _call_groq(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
 
 def _call_openai(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
     """
-    Call OpenAI API
+    Call OpenAI Chat Completions API. Uses JSON mode so the model returns a valid JSON
+    object directly (both roadmap and quiz prompts already ask for JSON, which JSON mode
+    requires). Mirrors the Groq path's error handling.
     """
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY not set in environment variables. Get one at https://platform.openai.com/api-keys")
+
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json"
@@ -173,19 +178,27 @@ def _call_openai(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str
     payload = {
         "model": OPENAI_MODEL,
         "messages": [
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
         ],
-        "temperature": 0.4
+        "temperature": 0.4,
+        "max_tokens": 4000,
+        "response_format": {"type": "json_object"}
     }
-    
-    response = requests.post(OPENAI_URL, headers=headers, json=payload)
-    response.raise_for_status()
-    
+
+    try:
+        response = requests.post(OPENAI_URL, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"OpenAI API error: {e}"
+        if response.status_code == 401:
+            error_msg = "Invalid OpenAI API key. Check OPENAI_API_KEY at https://platform.openai.com/api-keys"
+        elif response.status_code == 429:
+            error_msg = "OpenAI rate limit or insufficient quota. Please wait or check your billing."
+        raise Exception(error_msg)
+    except requests.exceptions.Timeout:
+        raise Exception("OpenAI API timeout. Please try again.")
+    except Exception as e:
+        raise Exception(f"OpenAI API request failed: {str(e)}")
+
     return response.json()["choices"][0]["message"]["content"]

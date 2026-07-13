@@ -13,39 +13,38 @@ SERPER_API_KEY = os.getenv("SERPER_API_KEY")
 
 def enrich_roadmap_with_resources(roadmap: Dict) -> Dict:
     """
-    Enrich each step in the roadmap with learning resources (parallel processing for speed).
-    Adds direct YouTube video links and article links.
+    Enrich each step AND each subtopic in the roadmap with learning resources
+    (parallel processing for speed). Adds direct YouTube video + article links.
+    Steps and subtopics are flattened into one thread pool so the whole roadmap
+    (typically 12 steps + ~36 subtopics) enriches concurrently.
     """
     steps = roadmap.get("steps", [])
-    
-    print(f"Enriching {len(steps)} steps with resources...")
-    
-    # Process all steps in parallel for faster results
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = []
-        for idx, step in enumerate(steps):
-            title = step.get("title", "")
-            skills = step.get("skills", [])
-            
-            # Create search query combining title and skills
-            search_query = f"{title} {' '.join(skills)} tutorial"
-            
-            print(f"  [{idx + 1}/{len(steps)}] Searching for: {search_query}")
-            
-            # Submit search task
-            future = executor.submit(search_learning_resources, search_query)
-            futures.append((step, idx, future))
-        
-        # Collect results
-        for step, idx, future in futures:
+
+    # Build the full task list: one search per step and per subtopic.
+    # Each entry is (query, target_dict) — the dict gets its own "resources" key.
+    tasks = []
+    for step in steps:
+        title = step.get("title", "")
+        skills = step.get("skills", [])
+        tasks.append((f"{title} {' '.join(skills)} tutorial", step))
+        for sub in step.get("subtopics", []) or []:
+            sub_title = sub.get("title", "")
+            # Include the parent topic for context so the search stays on-domain.
+            tasks.append((f"{sub_title} {title} tutorial", sub))
+
+    print(f"Enriching {len(steps)} steps + subtopics ({len(tasks)} targets) with resources...")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [(target, executor.submit(search_learning_resources, query))
+                   for query, target in tasks]
+
+        for target, future in futures:
             try:
-                resources = future.result(timeout=20)
-                step["resources"] = resources
-                print(f"  ✓ Step {idx + 1} enriched: YouTube={bool(resources['youtube_video'])}, Article={bool(resources['article'])}")
+                target["resources"] = future.result(timeout=25)
             except Exception as e:
-                print(f"  ✗ Step {idx + 1} failed: {str(e)}")
-                step["resources"] = {"youtube_video": None, "article": None}
-    
+                print(f"  ✗ enrichment failed for '{target.get('title', '?')}': {str(e)}")
+                target["resources"] = {"youtube_video": None, "article": None}
+
     print("Resource enrichment completed!")
     return roadmap
 
