@@ -1,26 +1,182 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   LearnBridge AI — design foundation
+   Tokens, base styles, motion. Honors DESIGN.md: blue-600 → indigo-600 brand,
+   slate neutrals, semantic status colors, soft elevation. Light-committed
+   product (gradient page bg + white cards); no separate dark theme by design.
+   ========================================================================== */
+
 :root {
-  --background: #dfdfdf;
-  --foreground: #f4f4f4;
+  color-scheme: light;
+
+  /* Surfaces */
+  --background: #f8fafc;        /* slate-50 — app base, never the old grey */
+  --foreground: #0f172a;        /* slate-900 */
+  --surface: #ffffff;           /* card / panel */
+  --secondary: #eef2ff;         /* indigo-50 — soft section wash */
+
+  /* Brand — the one recognizable move (DESIGN.md §primary) */
+  --brand: #2563eb;             /* blue-600 */
+  --brand-strong: #4f46e5;      /* indigo-600 */
+  --brand-ring: 37 99 235;      /* blue-600 rgb, for ring alpha */
+
+  /* Elevation — soft, not hard lines */
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.05);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 6px -2px rgb(15 23 42 / 0.05);
+  --shadow-lg: 0 12px 28px -6px rgb(15 23 42 / 0.12), 0 6px 12px -6px rgb(15 23 42 / 0.08);
+  --shadow-brand: 0 8px 24px -6px rgb(37 99 235 / 0.35);
+
+  /* Named z-index scale — never 9999 */
+  --z-dropdown: 40;
+  --z-sticky: 50;
+  --z-drawer-backdrop: 60;
+  --z-drawer: 61;
+  --z-modal-backdrop: 70;
+  --z-modal: 71;
+  --z-toast: 80;
+  --z-tooltip: 90;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--surface);
+  --color-secondary: var(--secondary);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --shadow-card: var(--shadow-sm);
+  --shadow-card-lg: var(--shadow-lg);
+  --shadow-brand: var(--shadow-brand);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #e4e3e3;
-    --foreground: #ffffff;
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numbers that shouldn't jitter as digits change (timers, scores) */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Consistent, visible focus — never removed */
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand-ring) / 0.9);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: rgb(var(--brand-ring) / 0.18);
+    color: var(--foreground);
+  }
+
+  /* Thin, unobtrusive scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+}
+
+@layer utilities {
+  /* The "you're inside the app" page background (DESIGN.md §surface-page) */
+  .app-bg {
+    background-image: linear-gradient(to bottom right,
+      #f8fafc 0%, #eff6ff 45%, #eef2ff 100%);
+  }
+
+  /* The signature brand gradient — one focal element per screen */
+  .brand-gradient {
+    background-image: linear-gradient(to right, var(--brand) 0%, var(--brand-strong) 100%);
+  }
+
+  /* Mobile-safe full height + notch-safe insets */
+  .min-h-dvh { min-height: 100dvh; }
+  .safe-b { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-t { padding-top: env(safe-area-inset-top); }
+
+  /* Kills tap delay on interactive elements */
+  .tap { touch-action: manipulation; }
+}
+
+/* ============================================================================
+   Motion — replicates the tailwindcss-animate subset the app relies on
+   (plugin is NOT installed). transform+opacity only. Reduced-motion honored.
+   ========================================================================== */
+@layer utilities {
+  @keyframes lb-enter {
+    from {
+      opacity: var(--tw-enter-opacity, 1);
+      transform: translate3d(var(--tw-enter-x, 0), var(--tw-enter-y, 0), 0)
+                 scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), 1);
+    }
+  }
+  @keyframes lb-fade { from { opacity: 0; } }
+  @keyframes lb-spin { to { transform: rotate(360deg); } }
+  @keyframes shimmer { 100% { transform: translateX(100%); } }
+
+  .animate-in {
+    animation-name: lb-enter;
+    animation-duration: 200ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); /* ease-out */
+    animation-fill-mode: both;
+  }
+  .fade-in            { --tw-enter-opacity: 0; }
+  .zoom-in            { --tw-enter-scale: 0.95; }
+  .slide-in-from-bottom-2 { --tw-enter-y: 0.5rem; }
+  .slide-in-from-bottom-4 { --tw-enter-y: 1rem; }
+  .slide-in-from-top-2    { --tw-enter-y: -0.5rem; }
+  .slide-in-from-left-2   { --tw-enter-x: -0.5rem; }
+  .slide-in-from-right-2  { --tw-enter-x: 0.5rem; }
+
+  /* Standalone reveal used by primitives */
+  .lb-rise {
+    animation: lb-enter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    --tw-enter-opacity: 0;
+    --tw-enter-y: 0.75rem;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
