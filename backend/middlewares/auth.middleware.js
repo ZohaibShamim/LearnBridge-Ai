@@ -10,8 +10,16 @@ export const verifyUser = asyncHandler(async (req, res, next) => {
     throw new ApiError(401, "No token provided");
   }
 
-  const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-  
+  // jwt.verify throws TokenExpiredError/JsonWebTokenError on an expired or malformed token.
+  // Surface it as a 401 (not a 500) so the client's refresh-on-401 interceptor can recover
+  // the session transparently instead of the raw "jwt expired" error breaking the action.
+  let decodedToken;
+  try {
+    decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+  } catch (err) {
+    throw new ApiError(401, "Invalid or expired access token");
+  }
+
   // decodedToken.role is set to "doctor" when we were signing the jwt so we can decode the token and get the role
   // out of it
 
