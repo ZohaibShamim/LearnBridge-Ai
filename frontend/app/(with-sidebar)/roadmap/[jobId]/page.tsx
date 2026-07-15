@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getJobStatus, JobStatus, RoadmapStep, Resource, normalizeResources, convertRoleToTitle } from "@/config/services/cv.service";
+import { getJobStatus, JobStatus, RoadmapStep, Resource, Subtopic, normalizeResources, convertRoleToTitle } from "@/config/services/cv.service";
 import { saveRoadmap } from "@/config/services/roadmap.service";
 import { SkillGapSection } from "@/components/SkillGap";
 import {
@@ -242,6 +242,41 @@ function ResourceCard({ resource }: { resource: Resource }) {
   );
 }
 
+// Read-only subtopic preview — no quiz launcher here (subtopics only get a stable `_id` for
+// quiz/gating once the roadmap is saved as a subdocument, see SubtopicRow in the saved-roadmap
+// view). This is just a preview of what guided learning will look like after saving.
+function SubtopicPreview({ sub }: { sub: Subtopic }) {
+  const resources = normalizeResources(sub.resources);
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+      <p className="font-medium text-slate-900 text-sm">{sub.title}</p>
+      {sub.summary && <p className="text-slate-500 text-xs mt-0.5">{sub.summary}</p>}
+      {resources.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {resources.map((r, i) => {
+            const isYouTube = r.type === "youtube" || r.url?.includes("youtube.com") || r.url?.includes("youtu.be");
+            return (
+              <a
+                key={i}
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                  isYouTube
+                    ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                    : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                }`}
+              >
+                {isYouTube ? "▶ Watch" : "📄 Read"}
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Step card component
 function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; isLast: boolean }) {
   const [isExpanded, setIsExpanded] = useState(index === 0);
@@ -250,20 +285,19 @@ function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; i
   const resources = normalizeResources(step.resources);
 
   return (
-    <div className="relative">
-      {/* Timeline connector */}
-      {!isLast && (
-        <div className="absolute left-6 top-16 bottom-0 w-0.5 bg-gradient-to-b from-blue-300 to-indigo-300" />
-      )}
-
-      <div className="flex gap-4">
-        {/* Step number */}
-        <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-500/30 z-10">
+    <div className="flex gap-4">
+      {/* Step number + timeline connector — connector is a flex child that stretches to
+          fill exactly the remaining column height, so it always reaches the next node
+          regardless of this card's content height (no hardcoded offset to keep in sync). */}
+      <div className="flex flex-col items-center flex-shrink-0">
+        <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-500/30 z-10">
           {step.step_number || index + 1}
         </div>
+        {!isLast && <div className="w-0.5 flex-1 bg-gradient-to-b from-blue-300 to-indigo-300" />}
+      </div>
 
-        {/* Content */}
-        <div className="flex-1 pb-8">
+      {/* Content */}
+      <div className="flex-1 pb-8">
           <Card
             className="overflow-hidden cursor-pointer transition-all hover:shadow-[var(--shadow-lg)]"
             onClick={() => setIsExpanded(!isExpanded)}
@@ -306,6 +340,20 @@ function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; i
                   </div>
                 )}
 
+                {/* Subtopics — read-only preview; quizzes unlock once the roadmap is saved */}
+                {step.subtopics && step.subtopics.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-700 mb-2">
+                      Subtopics ({step.subtopics.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {step.subtopics.map((sub, i) => (
+                        <SubtopicPreview key={i} sub={sub} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Resources - Enhanced display */}
                 {resources.length > 0 && (
                   <div className="pt-2">
@@ -325,7 +373,6 @@ function StepCard({ step, index, isLast }: { step: RoadmapStep; index: number; i
               </div>
             )}
           </Card>
-        </div>
       </div>
     </div>
   );
@@ -346,7 +393,7 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
     try {
       const jobTitle = convertRoleToTitle(job.role);
 
-      await saveRoadmap({
+      const saved = await saveRoadmap({
         jobTitle: jobTitle,
         roadmap: roadmap,
         description: `AI-generated roadmap for ${roadmap.career_goal}`,
@@ -355,14 +402,14 @@ function RoadmapDisplay({ job }: { job: JobStatus }) {
         missingSkills: job.missingSkills || [],
       });
 
-      // Invalidate roadmaps query to show the new roadmap in real-time
+      // Invalidate roadmaps query so the list is fresh by the time we land on it
       await queryClient.invalidateQueries({ queryKey: ["roadmaps"] });
 
       toast.success("Roadmap saved successfully!");
+      router.push(`/roadmaps?highlight=${saved.data._id}`);
     } catch (error) {
       console.error("Failed to save roadmap:", error);
       toast.error("Failed to save roadmap. Please try again.");
-    } finally {
       setIsSaving(false);
     }
   };

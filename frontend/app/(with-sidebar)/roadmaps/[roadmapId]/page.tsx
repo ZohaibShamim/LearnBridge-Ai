@@ -96,14 +96,13 @@ function StepCard({
   const resources = normalizeResources(step.resources);
 
   return (
-    <div className="relative">
-      {!isLast && (
-        <div className={`absolute left-6 top-16 bottom-0 w-0.5 ${isCompleted ? "bg-green-400" : "bg-gradient-to-b from-blue-300 to-indigo-300"}`} />
-      )}
-
-      <div className="flex gap-4">
+    <div className="flex gap-4">
+      {/* Node + timeline connector — connector is a flex child that stretches to fill
+          exactly the remaining column height, so it always reaches the next node
+          regardless of this card's content height (no hardcoded offset to keep in sync). */}
+      <div className="flex flex-col items-center flex-shrink-0">
         <div
-          className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg z-10 ${
+          className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg z-10 ${
             isCompleted
               ? "bg-gradient-to-br from-green-500 to-emerald-600 shadow-green-500/30"
               : "bg-gradient-to-br from-blue-600 to-indigo-600 shadow-blue-500/30"
@@ -115,6 +114,10 @@ function StepCard({
             step.step_number || index + 1
           )}
         </div>
+        {!isLast && (
+          <div className={`w-0.5 flex-1 ${isCompleted ? "bg-green-400" : "bg-gradient-to-b from-blue-300 to-indigo-300"}`} />
+        )}
+      </div>
 
         <div className="flex-1 pb-8">
           <Card className={cn("overflow-hidden", isCompleted ? "border-green-200" : "border-slate-100")}>
@@ -173,7 +176,6 @@ function StepCard({
             )}
           </Card>
         </div>
-      </div>
     </div>
   );
 }
@@ -295,13 +297,12 @@ function SubtopicStepCard({
       : "bg-gradient-to-br from-blue-600 to-indigo-600 shadow-blue-500/30";
 
   return (
-    <div className="relative">
-      {!isLast && (
-        <div className={`absolute left-6 top-16 bottom-0 w-0.5 ${allCleared ? "bg-green-400" : "bg-gradient-to-b from-blue-300 to-indigo-300"}`} />
-      )}
-
-      <div className="flex gap-4">
-        <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg z-10 ${nodeStyle}`}>
+    <div className="flex gap-4">
+      {/* Node + timeline connector — connector is a flex child that stretches to fill
+          exactly the remaining column height, so it always reaches the next node
+          regardless of this card's content height (no hardcoded offset to keep in sync). */}
+      <div className="flex flex-col items-center flex-shrink-0">
+        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg z-10 ${nodeStyle}`}>
           {locked ? (
             <Lock className="h-5 w-5" />
           ) : allCleared ? (
@@ -310,6 +311,10 @@ function SubtopicStepCard({
             step.step_number || index + 1
           )}
         </div>
+        {!isLast && (
+          <div className={`w-0.5 flex-1 ${allCleared ? "bg-green-400" : "bg-gradient-to-b from-blue-300 to-indigo-300"}`} />
+        )}
+      </div>
 
         <div className="flex-1 pb-8">
           <Card className={cn("overflow-hidden", allCleared ? "border-green-200" : locked ? "border-slate-200" : "border-slate-100")}>
@@ -359,7 +364,6 @@ function SubtopicStepCard({
             )}
           </Card>
         </div>
-      </div>
     </div>
   );
 }
