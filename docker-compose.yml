@@ -1,5 +1,6 @@
 # Learn Bridge AI — full stack (frontend + backend API + worker + AI service + Mongo + Redis).
-# Quick start:  cp .env.example .env  (fill GROQ_API_KEY + CLOUDINARY_*)  then  docker compose up --build
+# Quick start:  cp .env.example .env  (fill OPENAI_API_KEY, CLOUDINARY_*, EMAIL_USER/EMAIL_PASSWORD)
+# then  docker compose up --build
 # Then open http://localhost:3000
 
 # Shared env for the Express API and the BullMQ worker (they need the same connections/secrets).
@@ -58,11 +59,15 @@ services:
     build: ./ai
     restart: unless-stopped
     environment:
-      AI_PROVIDER: ${AI_PROVIDER:-groq}
+      # openai is the default: it's the only provider that reliably fills in every roadmap
+      # step's "subtopics" (guided learning/quizzes) — see ai/app/services/ai_service.py.
+      # Groq/HuggingFace still work for a plain roadmap, just without that guarantee.
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GROQ_MODEL: ${GROQ_MODEL:-}
       HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       SERPER_API_KEY: ${SERPER_API_KEY:-}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
     ports:
