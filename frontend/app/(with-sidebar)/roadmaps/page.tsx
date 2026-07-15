@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trash2, ChevronRight, Map, AlertTriangle } from "lucide-react";
 import { getRoadmaps, deleteRoadmap, SavedRoadmap } from "@/config/services/roadmap.service";
 import {
@@ -78,11 +78,16 @@ function DeleteRoadmapModal({
 }
 
 // Roadmap card component
-function RoadmapCard({ roadmap }: { roadmap: SavedRoadmap }) {
+function RoadmapCard({ roadmap, highlighted }: { roadmap: SavedRoadmap; highlighted: boolean }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (highlighted) cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlighted]);
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -127,6 +132,7 @@ function RoadmapCard({ roadmap }: { roadmap: SavedRoadmap }) {
 
   return (
     <Card
+      ref={cardRef}
       as="article"
       interactive={clickable}
       onClick={clickable ? handleView : undefined}
@@ -134,7 +140,8 @@ function RoadmapCard({ roadmap }: { roadmap: SavedRoadmap }) {
       tabIndex={clickable ? 0 : -1}
       className={cn(
         "group flex flex-col p-6",
-        clickable ? "cursor-pointer" : "cursor-not-allowed opacity-75"
+        clickable ? "cursor-pointer" : "cursor-not-allowed opacity-75",
+        highlighted && "ring-2 ring-blue-500 ring-offset-2"
       )}
     >
       <DeleteRoadmapModal
@@ -234,6 +241,8 @@ function RoadmapCardSkeleton() {
 // Main page component
 export default function RoadmapsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get("highlight");
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["roadmaps"],
     queryFn: getRoadmaps,
@@ -297,7 +306,7 @@ export default function RoadmapsPage() {
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {roadmaps.map((roadmap: SavedRoadmap) => (
-              <RoadmapCard key={roadmap._id} roadmap={roadmap} />
+              <RoadmapCard key={roadmap._id} roadmap={roadmap} highlighted={roadmap._id === highlightId} />
             ))}
           </div>
         )}

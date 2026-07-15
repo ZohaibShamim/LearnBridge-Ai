@@ -12,6 +12,51 @@ from app.utils.prompt import roadmap_prompt
 # existing roadmap path is unchanged; the quiz flow passes its own system prompt.
 DEFAULT_SYSTEM_PROMPT = "You are a professional career advisor that generates structured JSON responses."
 
+# Plain `response_format: json_object` only guarantees valid JSON syntax, not that the model
+# actually includes every field the prompt asks for — in practice gpt-4o-mini reliably omitted
+# the "subtopics" array on every step. OpenAI's strict json_schema mode makes every listed field
+# actually required, so the model can't return valid output without it.
+ROADMAP_JSON_SCHEMA = {
+    "name": "career_roadmap",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "career_goal": {"type": "string"},
+            "current_level": {"type": "string"},
+            "estimated_timeline": {"type": "string"},
+            "steps": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "month": {"type": "integer"},
+                        "title": {"type": "string"},
+                        "description": {"type": "string"},
+                        "skills": {"type": "array", "items": {"type": "string"}},
+                        "subtopics": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "summary": {"type": "string"},
+                                },
+                                "required": ["title", "summary"],
+                                "additionalProperties": False,
+                            },
+                        },
+                    },
+                    "required": ["month", "title", "description", "skills", "subtopics"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["career_goal", "current_level", "estimated_timeline", "steps"],
+        "additionalProperties": False,
+    },
+}
+
 
 def call_ai(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
     """
@@ -51,7 +96,7 @@ def generate_roadmap_from_cv(cv_text: str, role: str = None) -> str:
     elif AI_PROVIDER == "groq":
         return _call_groq(prompt)
     elif AI_PROVIDER == "openai":
-        return _call_openai(prompt)
+        return _call_openai(prompt, json_schema=ROADMAP_JSON_SCHEMA)
     else:
         raise ValueError(f"Unsupported AI provider: {AI_PROVIDER}")
 
@@ -161,11 +206,15 @@ def _call_groq(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
     
     return response.json()["choices"][0]["message"]["content"]
 
-def _call_openai(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
+def _call_openai(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT, json_schema: dict = None) -> str:
     """
     Call OpenAI Chat Completions API. Uses JSON mode so the model returns a valid JSON
     object directly (both roadmap and quiz prompts already ask for JSON, which JSON mode
     requires). Mirrors the Groq path's error handling.
+
+    Pass `json_schema` (OpenAI strict Structured Outputs format) when the response has fields
+    that must always be present — plain json_object mode only guarantees valid JSON syntax,
+    not that every prompted field actually shows up (observed: "subtopics" silently omitted).
     """
     if not OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY not set in environment variables. Get one at https://platform.openai.com/api-keys")
@@ -183,7 +232,11 @@ def _call_openai(prompt: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str
         ],
         "temperature": 0.4,
         "max_tokens": 4000,
-        "response_format": {"type": "json_object"}
+        "response_format": (
+            {"type": "json_schema", "json_schema": json_schema}
+            if json_schema
+            else {"type": "json_object"}
+        ),
     }
 
     try:
