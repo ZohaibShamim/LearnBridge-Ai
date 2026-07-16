@@ -57,6 +57,12 @@ function toFullQuiz(quiz) {
   };
 }
 
+// Clamp a requested question count into the AI service's supported range (3..15).
+function clampQuestions(value, fallback, min = 3, max = 15) {
+  const n = parseInt(value, 10);
+  return Math.min(Math.max(Number.isNaN(n) ? fallback : n, min), max);
+}
+
 function gradeFor(percentage) {
   if (percentage >= 90) return "A";
   if (percentage >= 75) return "B";
@@ -143,7 +149,7 @@ export const generateQuiz = asyncHandler(async (req, res) => {
 // Lazily generate (or return the cached) quiz for one roadmap subtopic at a fixed difficulty.
 export const getOrCreateSubtopicQuiz = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
-  const { roadmapId, stepIndex, subtopicId, difficulty } = req.body;
+  const { roadmapId, stepIndex, subtopicId, difficulty, numQuestions } = req.body;
 
   const idx = Number(stepIndex);
   if (!roadmapId || !Number.isInteger(idx) || idx < 0 || !subtopicId) {
@@ -152,6 +158,7 @@ export const getOrCreateSubtopicQuiz = asyncHandler(async (req, res) => {
   if (!["easy", "medium", "hard"].includes(difficulty)) {
     throw new ApiError(400, "difficulty must be easy, medium or hard");
   }
+  const n = clampQuestions(numQuestions, 5);
 
   const roadmap = await Roadmap.findById(roadmapId);
   if (!roadmap) throw new ApiError(404, "Roadmap not found");
@@ -168,9 +175,12 @@ export const getOrCreateSubtopicQuiz = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Complete the previous topic before starting this one");
   }
 
-  // Cache: reuse an existing quiz for this exact (user, roadmap, step, subtopic, difficulty).
+  // Cache: reuse an existing quiz for this exact (user, roadmap, step, subtopic, difficulty, count).
+  // The chosen question count is part of the key ($size) so picking a new count regenerates
+  // rather than silently returning the old length; past attempts keep referencing their own quiz.
   const existing = await Quiz.findOne({
     userId, roadmapId, stepIndex: idx, subtopicId: String(subtopicId), difficulty,
+    questions: { $size: n },
   });
   if (existing) {
     return res.status(200).json(new ApiResponse(200, toSafeQuiz(existing), "Quiz ready"));
@@ -182,7 +192,7 @@ export const getOrCreateSubtopicQuiz = asyncHandler(async (req, res) => {
     aiResponse = await aiClient.post("/ai/quiz", {
       topic: `${topicLabel}: ${subtopic.summary || subtopic.title}`,
       difficulty,
-      num_questions: 5,
+      num_questions: n,
     });
   } catch (err) {
     if (err?.response?.status === 422) throw new ApiError(400, "Invalid subtopic for quiz generation");
@@ -209,6 +219,91 @@ export const getOrCreateSubtopicQuiz = asyncHandler(async (req, res) => {
     description: `Test your knowledge of ${subtopic.title}.`,
     category: step.title,
     topic: topicLabel,
+    difficulty,
+    estimatedTime: Math.ceil(questions.length * 1.5),
+    questions,
+  });
+
+  return res.status(201).json(new ApiResponse(201, toSafeQuiz(quiz), "Quiz generated"));
+});
+
+// POST /api/v1/quizzes/topic  { roadmapId, stepIndex, difficulty, numQuestions }
+// A comprehensive quiz drawing questions from ALL subtopics of one topic. Passing it at
+// medium/hard clears the whole topic at once (see submitQuiz), unlocking the next one.
+export const getOrCreateTopicQuiz = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+  const { roadmapId, stepIndex, difficulty, numQuestions } = req.body;
+
+  const idx = Number(stepIndex);
+  if (!roadmapId || !Number.isInteger(idx) || idx < 0) {
+    throw new ApiError(400, "roadmapId and stepIndex are required");
+  }
+  if (!["easy", "medium", "hard"].includes(difficulty)) {
+    throw new ApiError(400, "difficulty must be easy, medium or hard");
+  }
+  // Comprehensive quiz spans every subtopic, so it needs at least 10 questions.
+  const n = clampQuestions(numQuestions, 10, 10, 15);
+
+  const roadmap = await Roadmap.findById(roadmapId);
+  if (!roadmap) throw new ApiError(404, "Roadmap not found");
+  if (roadmap.userId.toString() !== userId.toString()) {
+    throw new ApiError(403, "You don't have access to this roadmap");
+  }
+
+  const step = roadmap.roadmap?.steps?.[idx];
+  const subtopics = step?.subtopics || [];
+  if (!step || subtopics.length === 0) {
+    throw new ApiError(404, "This topic has no subtopics to build a quiz from");
+  }
+
+  // Same gate as subtopic quizzes: the topic must be unlocked first.
+  if (!isTopicUnlocked(roadmap, idx)) {
+    throw new ApiError(403, "Complete the previous topic before starting this one");
+  }
+
+  // Cache: one comprehensive quiz per (user, roadmap, step, difficulty, count).
+  // subtopicId is absent on topic quizzes — that's what distinguishes them from subtopic quizzes.
+  const existing = await Quiz.findOne({
+    userId, roadmapId, stepIndex: idx, subtopicId: null, difficulty,
+    questions: { $size: n },
+  });
+  if (existing) {
+    return res.status(200).json(new ApiResponse(200, toSafeQuiz(existing), "Quiz ready"));
+  }
+
+  const coverage = subtopics.map((s) => s.title).join(", ");
+  let aiResponse;
+  try {
+    aiResponse = await aiClient.post("/ai/quiz", {
+      topic: `${step.title} — comprehensive assessment covering all of: ${coverage}`,
+      difficulty,
+      num_questions: n,
+    });
+  } catch (err) {
+    if (err?.response?.status === 422) throw new ApiError(400, "Invalid topic for quiz generation");
+    throw new ApiError(502, "Quiz generation service is unavailable. Please try again.");
+  }
+
+  const questions = (aiResponse.data?.questions || []).map((q) => ({
+    question: q.question,
+    options: q.options,
+    correctIndex: q.correct_index,
+    explanation: q.explanation,
+    difficulty: q.difficulty || difficulty,
+  }));
+  if (questions.length === 0) {
+    throw new ApiError(502, "Quiz generation returned no valid questions. Please try again.");
+  }
+
+  const quiz = await Quiz.create({
+    userId,
+    roadmapId,
+    stepIndex: idx,
+    // no subtopicId — this is a topic-wide quiz
+    title: `${step.title} — Comprehensive (${difficulty})`,
+    description: `Test your knowledge across every subtopic of ${step.title}.`,
+    category: step.title,
+    topic: step.title,
     difficulty,
     estimatedTime: Math.ceil(questions.length * 1.5),
     questions,
@@ -279,22 +374,35 @@ export const submitQuiz = asyncHandler(async (req, res) => {
   const grade = gradeFor(percentage);
   const passed = percentage >= PASS_THRESHOLD;
 
-  // Roadmap effects only for subtopic quizzes that were passed at medium/hard.
+  // Roadmap effects for roadmap-linked quizzes passed at medium/hard. A subtopic quiz clears
+  // its own subtopic; a comprehensive topic quiz (no subtopicId) clears every subtopic of the
+  // topic at once — which unlocks the next topic via isTopicUnlocked's "all cleared" check.
   let badgeAwarded = false;
   let progress = null;
-  if (passed && quiz.roadmapId && quiz.subtopicId != null && ["medium", "hard"].includes(quiz.difficulty)) {
+  if (passed && quiz.roadmapId && quiz.stepIndex != null && ["medium", "hard"].includes(quiz.difficulty)) {
     const roadmap = await Roadmap.findById(quiz.roadmapId);
     if (roadmap && roadmap.userId.toString() === userId.toString()) {
       const sIdx = quiz.stepIndex;
 
-      // Clear the subtopic (idempotent; upgrade difficulty to hard if it was medium before).
-      const existingClear = roadmap.clearedSubtopics.find(
-        (c) => c.stepIndex === sIdx && c.subtopicId === quiz.subtopicId
-      );
-      if (existingClear) {
-        if (quiz.difficulty === "hard") existingClear.difficulty = "hard";
+      // Idempotent clear of one subtopic; upgrade a prior medium clear to hard.
+      const clearSubtopic = (subtopicId) => {
+        const sid = String(subtopicId);
+        const existingClear = roadmap.clearedSubtopics.find(
+          (c) => c.stepIndex === sIdx && c.subtopicId === sid
+        );
+        if (existingClear) {
+          if (quiz.difficulty === "hard") existingClear.difficulty = "hard";
+        } else {
+          roadmap.clearedSubtopics.push({ stepIndex: sIdx, subtopicId: sid, difficulty: quiz.difficulty });
+        }
+      };
+
+      if (quiz.subtopicId != null) {
+        clearSubtopic(quiz.subtopicId);
       } else {
-        roadmap.clearedSubtopics.push({ stepIndex: sIdx, subtopicId: quiz.subtopicId, difficulty: quiz.difficulty });
+        // Comprehensive topic quiz: clear every subtopic of this topic.
+        const subs = roadmap.roadmap?.steps?.[sIdx]?.subtopics || [];
+        subs.forEach((sub) => clearSubtopic(sub._id));
       }
 
       // Badge: first hard pass anywhere in this topic.

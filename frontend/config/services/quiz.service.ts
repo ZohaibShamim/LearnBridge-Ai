@@ -105,6 +105,7 @@ export interface SubtopicQuizPayload {
   stepIndex: number;
   subtopicId: string;
   difficulty: Difficulty;
+  numQuestions?: number; // 3..15, defaults to 5 on the backend
 }
 
 // Lazily gets (or generates + caches) the quiz for one roadmap subtopic at a fixed difficulty.
@@ -112,6 +113,22 @@ export const getOrCreateSubtopicQuiz = async (
   payload: SubtopicQuizPayload
 ): Promise<ApiResponse<Quiz>> => {
   const response = await api.post<ApiResponse<Quiz>>("/quizzes/subtopic", payload);
+  return response.data;
+};
+
+export interface TopicQuizPayload {
+  roadmapId: string;
+  stepIndex: number;
+  difficulty: Difficulty;
+  numQuestions?: number; // 10..15, defaults to 10 on the backend
+}
+
+// A comprehensive quiz spanning ALL subtopics of one topic. Passing it at medium/hard
+// clears the whole topic and unlocks the next one.
+export const getOrCreateTopicQuiz = async (
+  payload: TopicQuizPayload
+): Promise<ApiResponse<Quiz>> => {
+  const response = await api.post<ApiResponse<Quiz>>("/quizzes/topic", payload);
   return response.data;
 };
 

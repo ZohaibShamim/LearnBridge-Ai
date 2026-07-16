@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,12 +8,12 @@ import {
   updateRoadmapProgress,
   SavedRoadmap,
 } from "@/config/services/roadmap.service";
-import { getOrCreateSubtopicQuiz } from "@/config/services/quiz.service";
+import { getOrCreateSubtopicQuiz, getOrCreateTopicQuiz } from "@/config/services/quiz.service";
 import type { Difficulty } from "@/config/services/quiz.service";
 import { normalizeResources, RoadmapStep, Resource, Subtopic } from "@/config/services/cv.service";
 import { SkillGapSection } from "@/components/SkillGap";
-import { Button, Card, Badge, Progress, Skeleton } from "@/components/ui";
-import { ArrowLeft, ChevronDown, Check, Lock, Star, AlertTriangle } from "lucide-react";
+import { Button, Card, Badge, Progress, Skeleton, Modal, ModalIcon, ModalTitle, ModalDescription } from "@/components/ui";
+import { ArrowLeft, ChevronDown, Check, Lock, Star, AlertTriangle, Sparkles, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Difficulty button styles as LITERAL strings — never interpolate Tailwind class names
@@ -188,7 +188,6 @@ function SubtopicRow({
   locked,
   badgeEarned,
   onStart,
-  pendingKey,
 }: {
   sub: Subtopic;
   stepIndex: number;
@@ -196,7 +195,6 @@ function SubtopicRow({
   locked: boolean;
   badgeEarned: boolean;
   onStart: (stepIndex: number, subtopicId: string, difficulty: Difficulty) => void;
-  pendingKey: string | null;
 }) {
   return (
     <div className={`rounded-xl border p-4 transition-all ${cleared ? "border-green-200 bg-green-50/40" : "border-slate-100 bg-slate-50/40"}`}>
@@ -236,22 +234,18 @@ function SubtopicRow({
       })()}
 
       <div className="flex flex-wrap gap-2 mt-3">
-        {DIFFICULTIES.map((d) => {
-          const key = `${stepIndex}:${sub._id}:${d}`;
-          const isPending = pendingKey === key;
-          return (
-            <button
-              key={d}
-              disabled={locked || isPending}
-              onClick={() => onStart(stepIndex, sub._id, d)}
-              aria-label={`Start ${d} quiz for ${sub.title}`}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border capitalize transition-all disabled:opacity-50 disabled:cursor-not-allowed ${DIFF_STYLES[d]}`}
-            >
-              {isPending ? "Loading…" : d}
-              {d === "hard" ? " ⭐" : ""}
-            </button>
-          );
-        })}
+        {DIFFICULTIES.map((d) => (
+          <button
+            key={d}
+            disabled={locked}
+            onClick={() => onStart(stepIndex, sub._id, d)}
+            aria-label={`Start ${d} quiz for ${sub.title}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border capitalize transition-all disabled:opacity-50 disabled:cursor-not-allowed ${DIFF_STYLES[d]}`}
+          >
+            {d}
+            {d === "hard" ? " ⭐" : ""}
+          </button>
+        ))}
       </div>
 
       {!locked && (
@@ -273,7 +267,7 @@ function SubtopicStepCard({
   clearedSet,
   badgeEarned,
   onStart,
-  pendingKey,
+  onStartTopic,
 }: {
   step: RoadmapStep;
   index: number;
@@ -283,7 +277,7 @@ function SubtopicStepCard({
   clearedSet: Set<string>;
   badgeEarned: boolean;
   onStart: (stepIndex: number, subtopicId: string, difficulty: Difficulty) => void;
-  pendingKey: string | null;
+  onStartTopic: (stepIndex: number) => void;
 }) {
   const subtopics = step.subtopics || [];
   const clearedCount = subtopics.filter((s) => clearedSet.has(`${index}:${s._id}`)).length;
@@ -346,6 +340,24 @@ function SubtopicStepCard({
                   </div>
                 )}
 
+                {!locked && subtopics.length > 0 && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900 text-sm flex items-center gap-1.5">
+                          <Layers className="h-4 w-4 text-blue-600" /> Comprehensive Topic Quiz
+                        </p>
+                        <p className="text-slate-500 text-xs mt-0.5">
+                          Questions from all {subtopics.length} subtopics · pass Medium or Hard to unlock the next topic.
+                        </p>
+                      </div>
+                      <Button size="sm" onClick={() => onStartTopic(index)} className="flex-shrink-0">
+                        Take Quiz
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   {subtopics.map((sub) => (
                     <SubtopicRow
@@ -356,7 +368,6 @@ function SubtopicStepCard({
                       locked={locked}
                       badgeEarned={badgeEarned}
                       onStart={onStart}
-                      pendingKey={pendingKey}
                     />
                   ))}
                 </div>
@@ -406,6 +417,127 @@ function LoadingState() {
   );
 }
 
+// --- Shared quiz launcher modal: pick difficulty (topic mode) + question count ---------
+function QuizLauncherModal({
+  open,
+  mode,
+  subject,
+  initialDifficulty,
+  isPending,
+  error,
+  onConfirm,
+  onClose,
+}: {
+  open: boolean;
+  mode: "topic" | "subtopic";
+  subject: string;
+  initialDifficulty: Difficulty;
+  isPending: boolean;
+  error: string | null;
+  onConfirm: (difficulty: Difficulty, numQuestions: number) => void;
+  onClose: () => void;
+}) {
+  // Topic quizzes need at least 10 questions (they span every subtopic); subtopic quizzes start at 3.
+  const countOptions = mode === "topic" ? [10, 12, 15] : [3, 5, 8, 10, 15];
+  const [difficulty, setDifficulty] = useState<Difficulty>(initialDifficulty);
+  const [count, setCount] = useState<number>(mode === "topic" ? 10 : 5);
+
+  // Reset the form each time the modal opens for a new subtopic/topic.
+  useEffect(() => {
+    if (open) {
+      setDifficulty(initialDifficulty);
+      setCount(mode === "topic" ? 10 : 5);
+    }
+  }, [open, mode, initialDifficulty]);
+
+  return (
+    <Modal open={open} onOpenChange={(o) => { if (!o && !isPending) onClose(); }} size="md">
+      <div className="px-8 pb-6 pt-8 text-center">
+        <ModalIcon tone="brand">
+          {mode === "topic" ? <Layers className="h-7 w-7" /> : <Sparkles className="h-7 w-7" />}
+        </ModalIcon>
+        <ModalTitle className="mt-4 text-2xl font-bold text-slate-900">
+          {mode === "topic" ? "Comprehensive Topic Quiz" : "Start Quiz"}
+        </ModalTitle>
+        <ModalDescription className="mt-1 text-sm text-slate-600">
+          {mode === "topic"
+            ? `Questions span every subtopic of “${subject}”. Pass Medium or Hard to unlock the next topic.`
+            : `Test your knowledge of “${subject}”.`}
+        </ModalDescription>
+      </div>
+
+      <div className="px-8 pb-8 space-y-5 text-left">
+        {mode === "topic" ? (
+          <div>
+            <span className="block text-sm font-medium text-slate-700 mb-2">Difficulty</span>
+            <div className="grid grid-cols-3 gap-2">
+              {DIFFICULTIES.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDifficulty(d)}
+                  aria-pressed={difficulty === d}
+                  className={cn(
+                    "px-3 py-2 rounded-lg text-sm font-medium border capitalize transition-all",
+                    difficulty === d
+                      ? cn(DIFF_STYLES[d], "ring-2 ring-blue-500/40")
+                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  )}
+                >
+                  {d}
+                  {d === "hard" ? " ⭐" : ""}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              Easy is practice only — Medium or Hard unlocks the next topic.
+            </p>
+          </div>
+        ) : (
+          <div>
+            <span className="block text-sm font-medium text-slate-700 mb-2">Difficulty</span>
+            <span className={cn("inline-block px-3 py-1.5 rounded-lg text-sm font-medium border capitalize", DIFF_STYLES[difficulty])}>
+              {difficulty}
+              {difficulty === "hard" ? " ⭐" : ""}
+            </span>
+          </div>
+        )}
+
+        <div>
+          <label htmlFor="quiz-count" className="block text-sm font-medium text-slate-700 mb-2">
+            Number of questions
+          </label>
+          <select
+            id="quiz-count"
+            value={count}
+            onChange={(e) => setCount(Number(e.target.value))}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            {countOptions.map((c) => (
+              <option key={c} value={c}>{c} questions</option>
+            ))}
+          </select>
+        </div>
+
+        {error && (
+          <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">
+            {error}
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-1">
+          <Button variant="secondary" className="flex-1" onClick={onClose} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button className="flex-1" onClick={() => onConfirm(difficulty, count)} loading={isPending}>
+            {isPending ? "Generating…" : "Start Quiz"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // Content — branches between the guided (subtopic) view and the legacy flat view.
 function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
   const router = useRouter();
@@ -433,26 +565,58 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
   };
 
   const [launchError, setLaunchError] = useState<string | null>(null);
+  const [modalState, setModalState] = useState<
+    { mode: "topic" | "subtopic"; stepIndex: number; subtopicId?: string; subject: string; difficulty: Difficulty } | null
+  >(null);
+
+  const onQuizError = (err: unknown) => {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+      "Couldn't start the quiz. Please try again.";
+    setLaunchError(msg);
+  };
+  const onQuizSuccess = (res: { data?: { _id?: string } }) => {
+    if (res?.data?._id) router.push(`/quizzes/${res.data._id}`);
+  };
+
   const startQuiz = useMutation({
-    mutationFn: (v: { stepIndex: number; subtopicId: string; difficulty: Difficulty }) =>
+    mutationFn: (v: { stepIndex: number; subtopicId: string; difficulty: Difficulty; numQuestions: number }) =>
       getOrCreateSubtopicQuiz({ roadmapId: roadmap._id, ...v }),
     onMutate: () => setLaunchError(null),
-    onSuccess: (res) => {
-      if (res?.data?._id) router.push(`/quizzes/${res.data._id}`);
-    },
-    onError: (err: unknown) => {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        "Couldn't start the quiz. Please try again.";
-      setLaunchError(msg);
-    },
+    onSuccess: onQuizSuccess,
+    onError: onQuizError,
   });
-  const pendingKey =
-    startQuiz.isPending && startQuiz.variables
-      ? `${startQuiz.variables.stepIndex}:${startQuiz.variables.subtopicId}:${startQuiz.variables.difficulty}`
-      : null;
-  const handleStart = (stepIndex: number, subtopicId: string, difficulty: Difficulty) =>
-    startQuiz.mutate({ stepIndex, subtopicId, difficulty });
+  const startTopicQuiz = useMutation({
+    mutationFn: (v: { stepIndex: number; difficulty: Difficulty; numQuestions: number }) =>
+      getOrCreateTopicQuiz({ roadmapId: roadmap._id, ...v }),
+    onMutate: () => setLaunchError(null),
+    onSuccess: onQuizSuccess,
+    onError: onQuizError,
+  });
+  const isLaunching = startQuiz.isPending || startTopicQuiz.isPending;
+
+  const openSubtopicModal = (stepIndex: number, subtopicId: string, difficulty: Difficulty) => {
+    const sub = steps[stepIndex]?.subtopics?.find((s) => s._id === subtopicId);
+    setLaunchError(null);
+    setModalState({ mode: "subtopic", stepIndex, subtopicId, subject: sub?.title || "this subtopic", difficulty });
+  };
+  const openTopicModal = (stepIndex: number) => {
+    setLaunchError(null);
+    setModalState({ mode: "topic", stepIndex, subject: steps[stepIndex]?.title || "this topic", difficulty: "medium" });
+  };
+  const handleConfirmQuiz = (difficulty: Difficulty, numQuestions: number) => {
+    if (!modalState) return;
+    if (modalState.mode === "topic") {
+      startTopicQuiz.mutate({ stepIndex: modalState.stepIndex, difficulty, numQuestions });
+    } else if (modalState.subtopicId) {
+      startQuiz.mutate({ stepIndex: modalState.stepIndex, subtopicId: modalState.subtopicId, difficulty, numQuestions });
+    }
+  };
+  const closeModal = () => {
+    if (isLaunching) return;
+    setModalState(null);
+    setLaunchError(null);
+  };
 
   // --- legacy flat state ---
   const [completed, setCompleted] = useState<Set<number>>(
@@ -605,8 +769,8 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
                   prevTitle={steps[index - 1]?.title || "the previous topic"}
                   clearedSet={clearedSet}
                   badgeEarned={badgedSteps.has(index)}
-                  onStart={handleStart}
-                  pendingKey={pendingKey}
+                  onStart={openSubtopicModal}
+                  onStartTopic={openTopicModal}
                 />
               ) : (
                 <StepCard
@@ -649,6 +813,19 @@ function RoadmapContent({ roadmap }: { roadmap: SavedRoadmap }) {
           </Card>
         )}
       </main>
+
+      {modalState && (
+        <QuizLauncherModal
+          open={!!modalState}
+          mode={modalState.mode}
+          subject={modalState.subject}
+          initialDifficulty={modalState.difficulty}
+          isPending={isLaunching}
+          error={launchError}
+          onConfirm={handleConfirmQuiz}
+          onClose={closeModal}
+        />
+      )}
     </div>
   );
 }
