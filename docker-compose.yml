@@ -21,7 +21,9 @@ x-backend-env: &backend-env
   CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
   EMAIL_USER: ${EMAIL_USER:-}
   EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
-  ROADMAP_TIMEOUT_MS: ${ROADMAP_TIMEOUT_MS:-30000}
+  # AI roadmap gen = LLM call (up to 60s) + per-step resource enrichment (up to 25s),
+  # so 30s times out on a slow box while the AI service is still working. 3 min gives headroom.
+  ROADMAP_TIMEOUT_MS: ${ROADMAP_TIMEOUT_MS:-180000}
 
 services:
   mongo:

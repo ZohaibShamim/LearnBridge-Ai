@@ -26,7 +26,9 @@ if (process.env.REDIS_URL) {
 
 const axiosClient = axios.create({
   baseURL: process.env.FASTAPI_URL,
-  timeout: Number(process.env.ROADMAP_TIMEOUT_MS) || 30000,
+  // AI roadmap gen (LLM up to 60s + per-step enrichment up to 25s) can exceed 30s on a slow
+  // machine; a short timeout here fails the job while the AI service is still running. 3 min default.
+  timeout: Number(process.env.ROADMAP_TIMEOUT_MS) || 180000,
 });
 
 async function init() {
