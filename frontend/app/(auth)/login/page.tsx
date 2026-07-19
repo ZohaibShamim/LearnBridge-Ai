@@ -180,8 +180,8 @@ export default function LoginPage() {
   const { setUser } = useAuthStore();
 
   const [formData, setFormData] = useState({
-    email: "rohansresurrection+99@gmail.com",
-    password: "TestPass123!",
+    email: "",
+    password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -395,11 +395,6 @@ export default function LoginPage() {
                 {loginMutation.isPending ? "Sending OTP..." : "Sign In"}
               </Button>
             </form>
-
-            {/* Dev demo credentials */}
-            <p className="mt-4 text-center text-xs text-slate-400">
-              Demo: rohansresurrection+99@gmail.com / TestPass123!
-            </p>
 
             {/* Sign Up Link */}
             <div className="mt-6 text-center">
