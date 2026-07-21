@@ -154,10 +154,15 @@ export function SidebarInner({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              side="top"
-              align="start"
+              // Collapsed rail is only 76px wide, so a top-anchored menu overflows the left
+              // viewport edge — open it to the right of the rail instead. Expanded rail (and the
+              // mobile drawer) have room above the account row. collisionPadding keeps it on-screen
+              // in every case.
+              side={collapsed ? "right" : "top"}
+              align={collapsed ? "end" : "start"}
               sideOffset={8}
-              className="z-[var(--z-dropdown)] w-56 overflow-hidden rounded-xl border border-slate-100 bg-white p-1 shadow-[var(--shadow-lg)] data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-bottom-2"
+              collisionPadding={8}
+              className="z-[var(--z-dropdown)] w-56 overflow-hidden rounded-xl border border-slate-100 bg-white p-1 shadow-[var(--shadow-lg)] data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95"
             >
               <div className="border-b border-slate-100 px-3 py-2">
                 <p className="truncate text-sm font-semibold text-slate-900">{user?.firstName || "User"}</p>
