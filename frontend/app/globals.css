@@ -29,10 +29,13 @@
   --shadow-brand: 0 8px 24px -6px rgb(37 99 235 / 0.35);
 
   /* Named z-index scale — never 9999 */
-  --z-dropdown: 40;
   --z-sticky: 50;
   --z-drawer-backdrop: 60;
   --z-drawer: 61;
+  /* Above sticky AND drawer: the account menu is portaled to <body> but is triggered
+     from the desktop sidebar (sticky) and, on mobile, from inside the drawer — so it
+     must float above both or it renders hidden behind them. Stays below modal/toast. */
+  --z-dropdown: 65;
   --z-modal-backdrop: 70;
   --z-modal: 71;
   --z-toast: 80;
