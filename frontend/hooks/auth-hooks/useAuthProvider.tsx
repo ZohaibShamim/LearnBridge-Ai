@@ -28,8 +28,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Check if current route is public
-  const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
+  // Check if current route is public. "/" (landing) is matched exactly — it must never
+  // redirect to /login, and a startsWith("/") check would wrongly match every route.
+  const isPublicRoute = pathname === "/" || PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname?.startsWith(route));
 
   const checkAuth = useCallback(async (): Promise<boolean> => {
