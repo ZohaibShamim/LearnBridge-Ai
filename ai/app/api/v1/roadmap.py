@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 import json
 import re
+import concurrent.futures
 from app.schema.cv import CVRequest
 from app.services.ai_service import generate_roadmap_from_cv
 from app.services.search_service import enrich_roadmap_with_resources
@@ -84,21 +85,22 @@ def generate_roadmap(data: CVRequest):
         if "career_goal" not in roadmap_obj or "steps" not in roadmap_obj:
             raise ValueError("Invalid roadmap structure")
         
-        # Enrich each step with learning resources
+        # Resource enrichment (network-heavy) and skill-gap analysis (a second LLM call) are
+        # independent — skill-gap only needs cv_text + role, not the enriched roadmap. Run them
+        # concurrently so the slow enrichment and the extra LLM round-trip overlap instead of
+        # summing, keeping the whole request comfortably under the worker's timeout.
         print(f"[DEBUG] Before enrichment - roadmap structure preserved")
-        roadmap_with_resources = enrich_roadmap_with_resources(roadmap_obj)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            enrich_future = pool.submit(enrich_roadmap_with_resources, roadmap_obj)
+            skill_future = pool.submit(extract_skills_and_gap, data.cv_text, role)
+            roadmap_with_resources = enrich_future.result()
+            skill_data = skill_future.result()
         print(f"[DEBUG] After enrichment - roadmap keys: {roadmap_with_resources.keys()}")
-        if "steps" in roadmap_with_resources and len(roadmap_with_resources['steps']) > 0:
-            print(f"[DEBUG] After enrichment - First step keys: {roadmap_with_resources['steps'][0].keys()}")
-        
+
         # Extract tags from the roadmap skills
         tags = extract_tags_from_roadmap(roadmap_with_resources)
 
         print(f"[DEBUG] Extracted tags: {tags}")
-
-        # Skill extraction (R1.6) + gap vs target role (R1.7). Best-effort: returns empty
-        # lists on any failure so it never breaks the roadmap response.
-        skill_data = extract_skills_and_gap(data.cv_text, role)
         print(f"[DEBUG] Extracted skills: {skill_data['extracted_skills']}")
         print(f"[DEBUG] Missing skills: {skill_data['missing_skills']}")
 
